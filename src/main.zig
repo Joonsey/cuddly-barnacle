@@ -3,6 +3,7 @@ const rl = @import("raylib");
 
 const renderer = @import("renderer.zig");
 const entity = @import("entity.zig");
+const Level = @import("level.zig").Level;
 
 var WINDOW_WIDTH: i32 = 1600;
 var WINDOW_HEIGHT: i32 = 900;
@@ -24,6 +25,7 @@ pub fn main() !void {
 
     var tank = try renderer.Stacked.init("assets/tank.png");
 
+    const level: Level = try .init("level1");
     const player_id = ecs.spawn(.{
         .archetype = .Car,
         .controller = .{},
@@ -48,13 +50,18 @@ pub fn main() !void {
     while (!rl.windowShouldClose()) {
         const deltatime = rl.getFrameTime();
         ecs.update(deltatime);
-        const player = ecs.get(player_id);
-        camera.target(player.kinetic.?.position);
-        const delta = player.kinetic.?.rotation + std.math.pi * 0.5 - camera.rotation;
+        var player = ecs.get_mut(player_id);
+        var player_kinetics = &player.kinetic.?;
+        const traction = level.get_traction(player_kinetics.position);
+        player_kinetics.speed_multiplier = traction.speed_multiplier();
+        player_kinetics.friction = traction.friction();
+        camera.target(player_kinetics.position);
+        const delta = player_kinetics.rotation + std.math.pi * 0.5 - camera.rotation;
         camera.rotation += delta / 12;
 
         scene.begin();
         rl.clearBackground(.black);
+        level.draw(camera);
         ecs.draw(camera);
         scene.end();
 

@@ -53,6 +53,7 @@ pub const Kinetic = struct {
     velocity: rl.Vector2,
     rotation: f32,
     friction: f32 = 0.8,
+    speed_multiplier: f32 = 1,
 };
 
 pub const Archetype = enum {
@@ -154,7 +155,7 @@ pub const ECS = struct {
             var entity = &self.entities.items[i];
             if (entity.kinetic) |*kinetic| {
                 if (entity.collision) |*collision| {
-                    const sample_pos = kinetic.position.add(kinetic.velocity.scale(deltatime));
+                    const sample_pos = kinetic.position.add(kinetic.velocity.scale(deltatime).scale(kinetic.speed_multiplier));
                     collision.x = sample_pos.x;
                     var collided = false;
                     for (0..self.entities.items.len) |o| {
@@ -193,7 +194,7 @@ pub const ECS = struct {
                         kinetic.position.y = sample_pos.y;
                     }
                 } else {
-                    kinetic.position = kinetic.position.add(kinetic.velocity.scale(deltatime));
+                    kinetic.position = kinetic.position.add(kinetic.velocity.scale(deltatime).scale(kinetic.speed_multiplier));
                 }
 
                 kinetic.velocity.x *= kinetic.friction * deltatime;
