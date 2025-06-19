@@ -85,11 +85,17 @@ fn order_by_camera_position(camera: Camera, lhs: Entity, rhs: Entity) bool {
     return false;
 }
 
+pub const Shadow = struct {
+    radius: f32 = 0,
+    color: rl.Color = .init(0, 0, 0, 125),
+};
+
 pub const Entity = struct {
     renderable: ?Renderable = null,
     kinetic: ?Kinetic = null,
     collision: ?rl.Rectangle = null,
     controller: ?Controller = null,
+    shadow: ?Shadow = null,
     archetype: Archetype = .None,
 
     const Self = @This();
@@ -120,6 +126,13 @@ pub const Entity = struct {
 
     pub fn draw(self: Self, camera: Camera) void {
         if (self.renderable) |renderable| {
+            if (self.shadow) |shadow| {
+                const pos = renderable.get_position();
+                if (!camera.is_out_of_bounds(pos)) {
+                    rl.drawCircleV(camera.get_relative_position(pos), shadow.radius, shadow.color);
+                }
+            }
+
             switch (renderable) {
                 .Flat => |sprite| {
                     if (!camera.is_out_of_bounds(sprite.position)) sprite.draw(camera);

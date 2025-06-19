@@ -34,6 +34,7 @@ pub fn main() !void {
         .controller = .{},
         .renderable = .{ .Stacked = tank.copy() },
         .collision = .{ .x = 0, .y = 0, .width = 18, .height = 18 },
+        .shadow = .{ .radius = 9 },
         .kinetic = .{ .position = .{ .x = 100, .y = 100 }, .rotation = 0, .velocity = .{ .x = 0, .y = 0 },
         }
     });
@@ -41,6 +42,7 @@ pub fn main() !void {
     _ = ecs.spawn(.{
         .archetype = .Car,
         .renderable = .{ .Stacked = tank.copy() },
+        .shadow = .{ .radius = 9 },
         .collision = .{ .x = 0, .y = 0, .width = 18, .height = 18 },
         .kinetic = .{ .position = .{ .x = 140, .y = 140 }, .rotation = 0, .velocity = .{ .x = 0, .y = 0 },
         }
