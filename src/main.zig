@@ -24,6 +24,7 @@ pub fn main() !void {
     defer ecs.deinit();
 
     var tank = try renderer.Stacked.init("assets/tank.png");
+    var cube = try renderer.Stacked.init("assets/cube.png");
 
     const level: Level = try .init("level1");
     const player_id = ecs.spawn(.{
@@ -42,6 +43,16 @@ pub fn main() !void {
         .kinetic = .{ .position = .{ .x = 140, .y = 140 }, .rotation = 0, .velocity = .{ .x = 0, .y = 0 },
         }
     });
+
+    inline for(0..11) |i| {
+        var new_cube = cube.copy();
+        new_cube.position = .{ .x = 240, .y = 140 + i * 40 };
+        _ = ecs.spawn(.{
+            .archetype = .Wall,
+            .renderable = .{ .Stacked = new_cube },
+            .collision = .{ .x = 220, .y = 120 + i * 40, .width = 40, .height = 40 },
+        });
+    }
 
     const scene = try rl.loadRenderTexture(RENDER_WIDTH, RENDER_HEIGHT);
     var camera = renderer.Camera.init(RENDER_WIDTH, RENDER_HEIGHT);
