@@ -156,7 +156,7 @@ pub const ECS = struct {
             if (entity.kinetic) |*kinetic| {
                 if (entity.collision) |*collision| {
                     const sample_pos = kinetic.position.add(kinetic.velocity.scale(deltatime).scale(kinetic.speed_multiplier));
-                    collision.x = sample_pos.x;
+                    collision.x = sample_pos.x - collision.width / 2;
                     var collided = false;
                     for (0..self.entities.items.len) |o| {
                         if (o == i) continue;
@@ -170,12 +170,12 @@ pub const ECS = struct {
                     }
 
                     if (collided) {
-                        collision.x = kinetic.position.x;
+                        collision.x = kinetic.position.x - collision.width / 2;
                     } else {
                         kinetic.position.x = sample_pos.x;
                     }
 
-                    collision.y = sample_pos.y;
+                    collision.y = sample_pos.y - collision.height / 2;
                     collided = false;
                     for (0..self.entities.items.len) |o| {
                         if (o == i) continue;
@@ -189,7 +189,7 @@ pub const ECS = struct {
                     }
 
                     if (collided) {
-                        collision.y = kinetic.position.y;
+                        collision.y = kinetic.position.y - collision.height / 2;
                     } else {
                         kinetic.position.y = sample_pos.y;
                     }
