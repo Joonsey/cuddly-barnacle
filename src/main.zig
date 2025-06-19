@@ -72,7 +72,7 @@ pub fn main() !void {
         level.update_intermediate_texture(camera);
         scene.begin();
         rl.clearBackground(.black);
-        level.draw(shader);
+        level.draw(shader, camera);
         ecs.draw(camera);
         scene.end();
 

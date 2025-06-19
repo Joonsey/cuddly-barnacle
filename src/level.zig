@@ -148,10 +148,18 @@ pub const Level = struct {
         return .from_pixel(self.physics_image.getColor(px, py));
     }
 
-    pub fn draw(self: Self, shader: rl.Shader) void {
+    pub fn draw(self: Self, shader: rl.Shader, camera: renderer.Camera) void {
         shader.activate();
         const texture = self.intermediate_texture.texture;
         rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_tex_height"), &texture.height, .int);
+        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_tex_width"), &texture.width, .int);
+
+        const offset = camera.get_absolute_position(camera.position);
+        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_rotation"), &camera.rotation, .float);
+        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_offset_x"), &offset.x, .float);
+        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_offset_y"), &offset.y, .float);
+
+        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_time"), &@as(f32, @floatCast(rl.getTime())), .float);
         texture.drawPro(.{ .x = 0, .y = 0, .width = 720, .height = -480 }, .{ .x = 0, .y = 0, .width = 720, .height = 480 }, .init(0, 0), 0, .white);
         shader.deactivate();
     }
