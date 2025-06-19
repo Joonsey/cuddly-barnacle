@@ -123,10 +123,11 @@ pub const Stacked = struct {
         const rows: usize = @intCast(@divTrunc(texture.height , width));
         const f_width: f32 = @floatFromInt(width);
         for (0..rows) |i| {
-            const fi: f32 = @floatFromInt(rows - (i + 1));
+            const f_inverse_i: f32 = @floatFromInt(rows - (i + 1));
+            const f_i: f32 = @floatFromInt(i);
             texture.drawPro(
-                .{ .x = 0, .y = fi * f_width, .width = f_width, .height = f_width},
-                .{ .x = relative_pos.x, .y = relative_pos.y + fi, .width = f_width, .height = f_width },
+                .{ .x = 0, .y = f_inverse_i * f_width, .width = f_width, .height = f_width},
+                .{ .x = relative_pos.x, .y = relative_pos.y - f_i , .width = f_width, .height = f_width },
                 .{ .x = f_width / 2, .y = f_width / 2 },
                 std.math.radiansToDegrees(self.rotation - camera.rotation),
                 .white,
