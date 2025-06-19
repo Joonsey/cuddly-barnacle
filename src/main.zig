@@ -26,7 +26,7 @@ pub fn main() !void {
 
     var tank = try renderer.Stacked.init("assets/tank.png");
 
-    const level: Level = try .init(Levels.level_one, allocator);
+    var level: Level = try .init(Levels.level_one, allocator);
     defer level.deinit(allocator);
     level.load_ecs(&ecs);
     const player_id = ecs.spawn(.{
@@ -51,6 +51,11 @@ pub fn main() !void {
     const scene = try rl.loadRenderTexture(RENDER_WIDTH, RENDER_HEIGHT);
     var camera = renderer.Camera.init(RENDER_WIDTH, RENDER_HEIGHT);
 
+    const shader = try rl.loadShader(
+        null,
+        "assets/shaders/world.fs",
+    );
+
     rl.setTargetFPS(60);
     while (!rl.windowShouldClose()) {
         const deltatime = rl.getFrameTime();
@@ -64,9 +69,10 @@ pub fn main() !void {
         const delta = player_kinetics.rotation + std.math.pi * 0.5 - camera.rotation;
         camera.rotation += delta / 12;
 
+        level.update_intermediate_texture(camera);
         scene.begin();
         rl.clearBackground(.black);
-        level.draw(camera);
+        level.draw(shader);
         ecs.draw(camera);
         scene.end();
 

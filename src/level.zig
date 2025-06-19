@@ -49,6 +49,7 @@ pub const Traction = enum {
 pub const Level = struct {
     physics_image: rl.Image,
     graphics_texture: rl.Texture,
+    intermediate_texture: rl.RenderTexture,
     metadata: Metadata,
 
     startup_entities: []entity.Entity,
@@ -64,9 +65,11 @@ pub const Level = struct {
     const Self = @This();
     const levels_path = "assets/levels/";
     pub fn init(comptime directory: []const u8, allocator: std.mem.Allocator) !Self {
+        const text = try rl.loadTexture(levels_path ++ directory ++ "/graphics.png");
         return .{
             .physics_image = try rl.loadImage(levels_path ++ directory ++ "/physics.png"),
-            .graphics_texture = try rl.loadTexture(levels_path ++ directory ++ "/graphics.png"),
+            .graphics_texture = text,
+            .intermediate_texture = try rl.loadRenderTexture(720, 480),
             .metadata = Metadata.load(levels_path ++ directory ++ "/metadata") catch .{},
             .startup_entities = try load_entities_from_file(levels_path ++ directory ++ "/entities", allocator),
         };
@@ -77,6 +80,24 @@ pub const Level = struct {
         for (self.startup_entities) |e| {
             _ = ecs.spawn(e);
         }
+    }
+
+    pub fn update_intermediate_texture(self: *Self, camera: renderer.Camera) void {
+        self.intermediate_texture.begin();
+        rl.clearBackground(.black);
+        const relative_pos = camera.get_relative_position(.{ .x = 0, .y = 0 });
+
+        const texture = self.graphics_texture;
+        const f_width: f32 = @floatFromInt(texture.width);
+        const f_height: f32 = @floatFromInt(texture.height);
+        texture.drawPro(
+            .{ .x = 0, .y = 0, .width = f_width, .height = f_height},
+            .{ .x = relative_pos.x, .y = relative_pos.y, .width = f_width, .height = f_height},
+            .{ .x = 0, .y = 0 },
+            std.math.radiansToDegrees(-camera.rotation),
+            .white,
+        );
+        self.intermediate_texture.end();
     }
 
     fn load_entities_from_file(path: []const u8, allocator: std.mem.Allocator) ![]entity.Entity {
@@ -127,19 +148,12 @@ pub const Level = struct {
         return .from_pixel(self.physics_image.getColor(px, py));
     }
 
-    pub fn draw(self: Self, camera: renderer.Camera) void {
-        const relative_pos = camera.get_relative_position(.{ .x = 0, .y = 0 });
-
-        const texture = self.graphics_texture;
-        const f_width: f32 = @floatFromInt(texture.width);
-        const f_height: f32 = @floatFromInt(texture.height);
-        texture.drawPro(
-            .{ .x = 0, .y = 0, .width = f_width, .height = f_height},
-            .{ .x = relative_pos.x, .y = relative_pos.y, .width = f_width, .height = f_height},
-            .{ .x = 0, .y = 0 },
-            std.math.radiansToDegrees(-camera.rotation),
-            .white,
-        );
+    pub fn draw(self: Self, shader: rl.Shader) void {
+        shader.activate();
+        const texture = self.intermediate_texture.texture;
+        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_tex_height"), &texture.height, .int);
+        texture.drawPro(.{ .x = 0, .y = 0, .width = 720, .height = -480 }, .{ .x = 0, .y = 0, .width = 720, .height = 480 }, .init(0, 0), 0, .white);
+        shader.deactivate();
     }
 
     pub fn deinit(self: Self, allocator: std.mem.Allocator) void {

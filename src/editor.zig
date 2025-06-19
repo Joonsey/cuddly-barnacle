@@ -83,6 +83,11 @@ pub fn main() !void {
     const scene = try rl.loadRenderTexture(RENDER_WIDTH, RENDER_HEIGHT);
     var camera = renderer.Camera.init(RENDER_WIDTH, RENDER_HEIGHT);
 
+    const shader = try rl.loadShader(
+        null,
+        "assets/shaders/world.fs",
+    );
+
     rl.setTargetFPS(60);
     while (!rl.windowShouldClose()) {
         const deltatime = rl.getFrameTime();
@@ -116,9 +121,10 @@ pub fn main() !void {
         ecs.update(deltatime);
         handle_input(&camera);
 
+        level.update_intermediate_texture(camera);
         scene.begin();
         rl.clearBackground(.black);
-        level.draw(camera);
+        level.draw(shader);
         ecs.draw(camera);
         scene.end();
 
