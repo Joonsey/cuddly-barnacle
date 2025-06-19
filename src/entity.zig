@@ -63,6 +63,28 @@ pub const Archetype = enum {
     Wall,
 };
 
+fn order_by_camera_position(camera: Camera, lhs: Entity, rhs: Entity) bool {
+    if (lhs.renderable) |renderable| {
+        const abs_position = switch (renderable) {
+            .Flat => |r| r.position,
+            .Stacked => |r| r.position,
+        };
+        const lhs_relative_position = camera.get_relative_position(abs_position);
+
+        if (rhs.renderable) |rhs_renderable| {
+            const rhs_abs_position = switch (rhs_renderable) {
+                .Flat => |r| r.position,
+                .Stacked => |r| r.position,
+            };
+            const rhs_relative_position = camera.get_relative_position(rhs_abs_position);
+
+            return rhs_relative_position.y > lhs_relative_position.y;
+        }
+    }
+
+    return false;
+}
+
 pub const Entity = struct {
     renderable: ?Renderable = null,
     kinetic: ?Kinetic = null,
@@ -206,13 +228,23 @@ pub const ECS = struct {
     }
 
     pub fn draw(self: Self, camera: Camera) void {
-        for (self.entities.items) |entity| entity.draw(camera);
+        var array: std.ArrayListUnmanaged(Entity) = .{};
+        array.appendSlice(self.allocator, self.entities.items) catch unreachable;
+        defer array.deinit(self.allocator);
+
+        std.mem.sort(Entity, array.items, camera, order_by_camera_position);
+        for (array.items) |entity| entity.draw(camera);
     }
 
     pub fn spawn(self: *Self, entity: Entity) EntityId {
         self.entities.append(self.allocator, entity) catch unreachable;
         defer self.next_id += 1;
         return self.next_id;
+    }
+
+    pub fn despawn(self: *Self, id: EntityId) void {
+        self.next_id -= 1;
+        _ = self.entities.swapRemove(id);
     }
 
     pub fn get(self: *Self, id: EntityId) Entity {

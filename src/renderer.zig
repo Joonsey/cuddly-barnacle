@@ -37,6 +37,20 @@ pub const Camera = struct {
         return rotated.add(self.screen_offset);
     }
 
+    pub fn get_absolute_position(self: Self, relative_position: rl.Vector2) rl.Vector2 {
+        const delta = relative_position.subtract(self.screen_offset);
+        const cos_r = @cos(self.rotation);
+        const sin_r = @sin(self.rotation);
+
+        const rotated: rl.Vector2 = .{
+            .x = delta.x * cos_r - delta.y * sin_r,
+            .y = delta.x * sin_r + delta.y * cos_r,
+        };
+
+        return self.position.add(rotated);
+    }
+
+
     pub fn is_out_of_bounds(self: Self, abs_position: rl.Vector2) bool {
         const relative_pos = self.get_relative_position(abs_position);
 
@@ -49,15 +63,38 @@ pub const Camera = struct {
     }
 };
 
-pub const Renderable = union(enum) {
+pub const Rendertypes = enum {
+    Stacked,
+    Flat,
+};
+
+pub const Renderable = union(Rendertypes) {
     Stacked: Stacked,
     Flat: Flat,
+
+    const Self = @This();
+    pub fn get_position(self: Self) rl.Vector2 {
+        return switch (self) {
+            .Flat => |r| r.position,
+            .Stacked => |r| r.position,
+        };
+    }
+
+    pub fn set_position(self: *Self, pos: rl.Vector2) void {
+        switch (self.*) {
+            .Flat => |*r| r.position = pos,
+            .Stacked => |*r| r.position = pos,
+        }
+    }
 };
 
 pub const Flat = struct {
     texture: rl.Texture,
     position: rl.Vector2,
     rotation: f32,
+    color: rl.Color = .white,
+
+    path: [:0]const u8,
 
     const Self = @This();
     pub fn init(path: [:0]const u8) !Self {
@@ -65,6 +102,7 @@ pub const Flat = struct {
             .texture = try rl.loadTexture(path),
             .rotation = 0,
             .position = .{ .x = 0, .y = 0 },
+            .path = path,
         };
     }
 
@@ -87,7 +125,7 @@ pub const Flat = struct {
             .{ .x = relative_pos.x, .y = relative_pos.y, .width = f_width, .height = f_height},
             .{ .x = f_width / 2, .y = f_height / 2 },
             std.math.radiansToDegrees(self.rotation - camera.rotation),
-            .white,
+            self.color,
         );
     }
 };
@@ -95,6 +133,9 @@ pub const Stacked = struct {
     texture: rl.Texture,
     position: rl.Vector2,
     rotation: f32,
+    color: rl.Color = .white,
+
+    path: [:0]const u8,
 
     const Self = @This();
     pub fn init(path: [:0]const u8) !Self {
@@ -102,6 +143,7 @@ pub const Stacked = struct {
             .texture = try rl.loadTexture(path),
             .rotation = 0,
             .position = .{ .x = 0, .y = 0 },
+            .path = path
         };
     }
 
@@ -110,6 +152,7 @@ pub const Stacked = struct {
             .texture = self.texture,
             .rotation = 0,
             .position = .{ .x = 0, .y = 0 },
+            .path = self.path,
         };
     }
 
@@ -130,7 +173,7 @@ pub const Stacked = struct {
                 .{ .x = relative_pos.x, .y = relative_pos.y - f_i , .width = f_width, .height = f_width },
                 .{ .x = f_width / 2, .y = f_width / 2 },
                 std.math.radiansToDegrees(self.rotation - camera.rotation),
-                .white,
+                self.color,
                 );
         }
 
