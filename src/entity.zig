@@ -12,7 +12,7 @@ pub const Controller = struct {
     const max_speed = 100;
     const acceleration = 150;
     const Self = @This();
-    pub fn handle_input(self: Self, kinetic: *Kinetic, deltatime: f32) void {
+    pub fn handle_input(self: Self, kinetic: *Kinetic, drift: *Drift, transform: *Transform, deltatime: f32) void {
         _ = self;
 
         const forward: rl.Vector2 = .{
@@ -38,7 +38,37 @@ pub const Controller = struct {
             }
         }
 
-        const rotation_speed = (1.5 * (kinetic.velocity.length() / max_speed)) * deltatime;
+        const base_rotation_speed = kinetic.velocity.length() / max_speed * deltatime;
+
+        if (rl.isKeyPressed(.h) and drift.state == .none and transform.height == 0) {
+            drift.state = .charging;
+            transform.height += 5;
+
+            if (rl.isKeyDown(.a)) {
+                drift.direction = -1;
+            } else if (rl.isKeyDown(.d)) {
+                drift.direction = 1;
+            } else {
+                drift.direction = 0;
+            }
+        }
+
+        if (drift.state == .charging) {
+            if (drift.direction == 0 and transform.height == 0) {
+                drift.state = .none;
+            }
+
+            if (rl.isKeyDown(.h)) {
+                kinetic.rotation += base_rotation_speed * 0.6 * drift.direction;
+            }
+
+            if (rl.isKeyReleased(.h)) {
+                drift.state = .boosting;
+                drift.direction = 0;
+                drift.time_held = 0;
+            }
+        }
+        const rotation_speed = if (drift.state != .charging) base_rotation_speed else base_rotation_speed * 0.2;
 
         if (rl.isKeyDown(.a)) {
             kinetic.rotation -= rotation_speed;
@@ -60,11 +90,25 @@ pub const RaceContext = struct {
     checkpoint: usize = 0,
 };
 
+pub const DriftState = enum {
+    none,
+    charging,
+    boosting,
+};
+
+pub const Drift = struct {
+    state: DriftState = .none,
+    time_held: f32 = 0,
+    boost_time: f32 = 0,
+    direction: f32 = 0,
+};
+
 pub const Kinetic = struct {
     velocity: rl.Vector2,
     rotation: f32,
     friction: f32 = 0.8,
     speed_multiplier: f32 = 1,
+    weight: f32 = 20,
 };
 
 pub const Archetype = enum {
@@ -105,6 +149,7 @@ pub const Entity = struct {
     archetype: Archetype = .None,
     prefab: ?prefab.Prefab = null,
     race_context: ?RaceContext = null,
+    drift: ?Drift = null,
 
     const Self = @This();
     pub fn update(self: *Self, deltatime: f32) ?Event {
@@ -123,7 +168,11 @@ pub const Entity = struct {
         }
         if (self.controller) |controller| {
             if (self.kinetic) |*kinetic| {
-                controller.handle_input(kinetic, deltatime);
+                if (self.drift) |*drift|{
+                    if (self.transform) |*transform|{
+                        controller.handle_input(kinetic, drift, transform, deltatime);
+                    }
+                }
             }
         }
 
@@ -166,10 +215,17 @@ const Event = union(enum) {
         b: EntityId,
     },
     Finish: struct {
-        placement: usize
+        placement: usize,
+        entity: EntityId,
+
     },
     CompleteLap: struct {
-        placement: usize
+        placement: usize,
+        entity: EntityId,
+    },
+    Boosting: struct {
+        // maybe level of boost?? more things?
+        entity: EntityId,
     },
 };
 
@@ -201,6 +257,9 @@ pub const ECS = struct {
                 },
                 .CompleteLap => |cmp| {
                     _ = cmp;
+                },
+                .Boosting => |boost| {
+                    _ = boost;
                 }
             }
         }
@@ -215,9 +274,22 @@ pub const ECS = struct {
 
         for (0..self.entities.items.len) |i| {
             var entity = &self.entities.items[i];
+            if (entity.drift) |*drift| {
+                switch (drift.state) {
+                    .none => {},
+                    .charging => {
+                        drift.time_held += deltatime;
+                    },
+                    .boosting => {
+                        self.events.append(self.allocator, .{ .Boosting = .{ .entity = @intCast(i) }}) catch unreachable;
+                        drift.state = .none;
+                    },
+                }
+            }
             if (entity.transform) |*transform| {
                 var position = transform.position;
                 if (entity.kinetic) |*kinetic| {
+                    transform.height = @max(transform.height - (kinetic.weight * deltatime), 0);
                     if (entity.collision) |*collision| {
                         const sample_pos = position.add(kinetic.velocity.scale(deltatime).scale(kinetic.speed_multiplier));
                         collision.x = sample_pos.x - collision.width / 2;
@@ -275,9 +347,9 @@ pub const ECS = struct {
                             race_context.lap += 1;
 
                             if (race_context.lap >= 3) {
-                                self.events.append(self.allocator, .{ .Finish = .{ .placement = 0 }}) catch unreachable;
+                                self.events.append(self.allocator, .{ .Finish = .{ .placement = 0, .entity = @intCast(i) }}) catch unreachable;
                             } else {
-                                self.events.append(self.allocator, .{ .CompleteLap = .{ .placement = 0 }}) catch unreachable;
+                                self.events.append(self.allocator, .{ .CompleteLap = .{ .placement = 0, .entity = @intCast(i) }}) catch unreachable;
                             }
                         }
                     } else {

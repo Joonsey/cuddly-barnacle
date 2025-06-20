@@ -109,7 +109,7 @@ pub const Flat = struct {
         const f_height: f32 = @floatFromInt(texture.height);
         texture.drawPro(
             .{ .x = 0, .y = 0, .width = f_width, .height = f_height},
-            .{ .x = relative_pos.x, .y = relative_pos.y, .width = f_width, .height = f_height},
+            .{ .x = relative_pos.x, .y = relative_pos.y - transform.height, .width = f_width, .height = f_height},
             .{ .x = f_width / 2, .y = f_height / 2 },
             std.math.radiansToDegrees(self.rotation - camera.rotation),
             self.color,
@@ -154,7 +154,7 @@ pub const Stacked = struct {
             const f_i: f32 = @floatFromInt(i);
             texture.drawPro(
                 .{ .x = 0, .y = f_inverse_i * f_width, .width = f_width, .height = f_width},
-                .{ .x = relative_pos.x, .y = relative_pos.y - f_i , .width = f_width, .height = f_width },
+                .{ .x = relative_pos.x, .y = relative_pos.y - f_i - transform.height, .width = f_width, .height = f_width },
                 .{ .x = f_width / 2, .y = f_width / 2 },
                 std.math.radiansToDegrees(self.rotation - camera.rotation),
                 self.color,

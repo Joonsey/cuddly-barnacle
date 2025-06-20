@@ -70,7 +70,7 @@ const Selected = union(enum) {
     fn draw_text(self: Self) void {
         const text = switch (self) {
             .Entity => "Entity",
-            .Checkpoints => "Checkpoints",
+            .Checkpoints => |cp| rl.textFormat("Checkpoints: %d/%d", .{cp.current, cp.points.items.len}),
             .Finish => "Finish",
             .None => "",
         };
@@ -131,7 +131,7 @@ const Selected = union(enum) {
                     state.add_stack.append(state.allocator, id) catch unreachable;
                 }
 
-                if (rl.isKeyPressed(.z)) {
+                if (rl.isKeyPressed(.z) and !rl.isKeyDown(.left_control)) {
                     const prev = state.iterator.previous();
                     e.collision = prev.collision;
                     e.renderable = prev.renderable;
@@ -140,7 +140,7 @@ const Selected = union(enum) {
                     e.prefab = prev.prefab;
                 }
 
-                if (rl.isKeyPressed(.x)) {
+                if (rl.isKeyPressed(.x) and !rl.isKeyDown(.left_control)) {
                     const next = state.iterator.next();
                     e.collision = next.collision;
                     e.renderable = next.renderable;
@@ -172,10 +172,10 @@ const Selected = union(enum) {
 
                 state.level.checkpoints = c.points.items;
 
-                if (rl.isKeyPressed(.x)) {
+                if (rl.isKeyPressed(.x) and !rl.isKeyDown(.left_control)) {
                     c.current = inc(c.current, 1, c.points.items.len);
                 }
-                if (rl.isKeyPressed(.z)) {
+                if (rl.isKeyPressed(.z) and !rl.isKeyDown(.left_control)) {
                     c.current = inc(c.current, -1, c.points.items.len);
                 }
         },
@@ -259,7 +259,7 @@ pub fn main() !void {
 
         selected.update(camera, cursor_pos, &state);
 
-        if (rl.isKeyPressed(.z) and (rl.isKeyDown(.left_control))) if (add_stack.pop()) |id| state.ecs.despawn(id);
+        if (rl.isKeyPressed(.z) and (rl.isKeyDown(.left_control))) if (state.add_stack.pop()) |id| state.ecs.despawn(id);
         if (rl.isKeyPressed(.r) and (rl.isKeyDown(.left_control))) {
             try level.save(state.ecs.entities.items, state.level.checkpoints, state.level.finish, allocator, Levels.level_one);
             std.log.debug("SAVED!", .{});

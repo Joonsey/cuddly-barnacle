@@ -43,6 +43,7 @@ pub fn main() !void {
     tank.transform.?.position = level.finish.get_spawn(11);
     tank.kinetic = .{ .rotation = level.finish.get_direction(), .velocity = .{ .x = 0, .y = 0 }};
     tank.controller = .{};
+    tank.drift = .{};
     tank.race_context = .{};
     const player_id = ecs.spawn(tank);
 
