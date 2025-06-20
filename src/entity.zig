@@ -2,6 +2,7 @@ const std = @import("std");
 const renderer = @import("renderer.zig");
 const prefab = @import("prefabs.zig");
 const rl = @import("raylib");
+const level = @import("level.zig");
 const Camera = renderer.Camera;
 const Renderable = renderer.Renderable;
 
@@ -54,6 +55,11 @@ pub const Transform = struct {
     height: f32 = 0,
 };
 
+pub const RaceContext = struct {
+    lap: usize = 0,
+    checkpoint: usize = 0,
+};
+
 pub const Kinetic = struct {
     velocity: rl.Vector2,
     rotation: f32,
@@ -98,6 +104,7 @@ pub const Entity = struct {
     shadow: ?Shadow = null,
     archetype: Archetype = .None,
     prefab: ?prefab.Prefab = null,
+    race_context: ?RaceContext = null,
 
     const Self = @This();
     pub fn update(self: *Self, deltatime: f32) ?Event {
@@ -158,6 +165,12 @@ const Event = union(enum) {
         a: EntityId,
         b: EntityId,
     },
+    Finish: struct {
+        placement: usize
+    },
+    CompleteLap: struct {
+        placement: usize
+    },
 };
 
 pub const ECS = struct {
@@ -183,13 +196,19 @@ pub const ECS = struct {
                     _ = col;
                     // std.log.err("COLLISION EVENT {?}", .{col});
                 },
+                .Finish => |fin| {
+                    std.log.err("{any}", .{fin});
+                },
+                .CompleteLap => |cmp| {
+                    _ = cmp;
+                }
             }
         }
 
         self.events.items.len = 0;
     }
 
-    pub fn update(self: *Self, deltatime: f32) void {
+    pub fn update(self: *Self, deltatime: f32, lvl: level.Level) void {
         for (self.entities.items) |*entity| {
             if (entity.update(deltatime)) |event| self.events.append(self.allocator, event) catch unreachable;
         }
@@ -247,6 +266,27 @@ pub const ECS = struct {
                 }
 
                 transform.position = position;
+
+                if (entity.race_context) |*race_context| {
+                    const next_expected_checkpoint = race_context.checkpoint + 1;
+                    if (next_expected_checkpoint >= lvl.checkpoints.len) {
+                        if (lvl.finish.is_intersecting(transform.position, 9)) {
+                            race_context.checkpoint = 0;
+                            race_context.lap += 1;
+
+                            if (race_context.lap >= 3) {
+                                self.events.append(self.allocator, .{ .Finish = .{ .placement = 0 }}) catch unreachable;
+                            } else {
+                                self.events.append(self.allocator, .{ .CompleteLap = .{ .placement = 0 }}) catch unreachable;
+                            }
+                        }
+                    } else {
+                        const cp = lvl.checkpoints[next_expected_checkpoint];
+                        if (rl.checkCollisionCircles(cp.position, cp.radius, transform.position, 9)) {
+                            race_context.checkpoint += 1;
+                        }
+                    }
+                }
             }
         }
 

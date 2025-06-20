@@ -88,6 +88,31 @@ pub const Finish = struct {
         // i just offset by a quarter radian
         return std.math.atan2(dir.y, dir.x) - std.math.pi * 0.5;
     }
+
+    pub fn is_intersecting(self: Self, position: rl.Vector2, radius: f32) bool {
+        const a = self.left;
+        const b = self.right;
+
+        // Vector from A to B
+        const ab = b.subtract(a);
+        const ab_length = ab.length();
+
+        // Vector from A to circle center
+        const ac = position.subtract(a);
+
+        // Project AC onto AB to find the closest point on the line segment
+        const ab_dir = ab.scale(1.0 / ab_length);
+        const proj = ac.dotProduct(ab_dir);
+        const t = @max(0.0, @min(proj, ab_length)); // Clamp to [0, length]
+
+        const closest = a.add(ab_dir.scale(t));
+
+        // Distance from circle center to closest point
+        const dist_sq = position.subtract(closest).lengthSqr();
+
+        return dist_sq <= radius * radius;
+
+    }
 };
 
 pub const Level = struct {

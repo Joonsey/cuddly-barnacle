@@ -169,6 +169,9 @@ const Selected = union(enum) {
                         c.points.append(state.allocator, new_cp) catch unreachable;
                     }
                 }
+
+                state.level.checkpoints = c.points.items;
+
                 if (rl.isKeyPressed(.x)) {
                     c.current = inc(c.current, 1, c.points.items.len);
                 }
@@ -234,6 +237,7 @@ pub fn main() !void {
 
     var checkpoints: std.ArrayListUnmanaged(Checkpoint) = .{};
     defer checkpoints.deinit(allocator);
+    try checkpoints.appendSlice(allocator, level.checkpoints);
 
     var state: State = .{
         .add_stack = add_stack,
@@ -262,7 +266,7 @@ pub fn main() !void {
         }
 
         if (rl.isKeyPressed(.c)) {
-            selected = .{ .Checkpoints = .{ .points = checkpoints } };
+            selected = .{ .Checkpoints = .{ .points = checkpoints, .current = checkpoints.items.len} };
         }
 
         if (rl.isKeyPressed(.f)) {
@@ -270,7 +274,7 @@ pub fn main() !void {
         }
 
 
-        state.ecs.update(deltatime);
+        state.ecs.update(deltatime, state.level);
         handle_input(&camera);
 
         level.update_intermediate_texture(camera);

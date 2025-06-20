@@ -43,6 +43,7 @@ pub fn main() !void {
     tank.transform.?.position = level.finish.get_spawn(11);
     tank.kinetic = .{ .rotation = level.finish.get_direction(), .velocity = .{ .x = 0, .y = 0 }};
     tank.controller = .{};
+    tank.race_context = .{};
     const player_id = ecs.spawn(tank);
 
     const scene = try rl.loadRenderTexture(RENDER_WIDTH, RENDER_HEIGHT);
@@ -56,7 +57,7 @@ pub fn main() !void {
     rl.setTargetFPS(60);
     while (!rl.windowShouldClose()) {
         const deltatime = rl.getFrameTime();
-        ecs.update(deltatime);
+        ecs.update(deltatime, level);
         var player = ecs.get_mut(player_id);
         const transform = &player.transform.?;
         var kinetics = &player.kinetic.?;
@@ -72,6 +73,9 @@ pub fn main() !void {
         rl.clearBackground(.black);
         level.draw(shader, camera);
         ecs.draw(camera);
+
+        const race_context = player.race_context.?;
+        rl.drawText(rl.textFormat("%d/3", .{race_context.lap + 1}), 0, 16, 20, .white);
         scene.end();
 
         // drawing scene at desired resolution
