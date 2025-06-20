@@ -54,9 +54,7 @@ pub const Controller = struct {
         }
 
         if (drift.state == .charging) {
-            if (drift.direction == 0 and transform.height == 0) {
-                drift.state = .none;
-            }
+            if (drift.direction == 0 and transform.height == 0) drift.state = .none;
 
             if (rl.isKeyDown(.h)) {
                 kinetic.rotation += base_rotation_speed * 0.6 * drift.direction;
