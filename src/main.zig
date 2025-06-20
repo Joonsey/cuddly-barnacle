@@ -35,7 +35,8 @@ pub fn main() !void {
         .renderable = .{ .Stacked = tank.copy() },
         .collision = .{ .x = 0, .y = 0, .width = 18, .height = 18 },
         .shadow = .{ .radius = 9 },
-        .kinetic = .{ .position = .{ .x = 100, .y = 100 }, .rotation = 0, .velocity = .{ .x = 0, .y = 0 },
+        .transform = .{ .position = .{ .x = 140, .y = 140 } },
+        .kinetic = .{ .rotation = 0, .velocity = .{ .x = 0, .y = 0 },
         }
     });
 
@@ -44,7 +45,8 @@ pub fn main() !void {
         .renderable = .{ .Stacked = tank.copy() },
         .shadow = .{ .radius = 9 },
         .collision = .{ .x = 0, .y = 0, .width = 18, .height = 18 },
-        .kinetic = .{ .position = .{ .x = 140, .y = 140 }, .rotation = 0, .velocity = .{ .x = 0, .y = 0 },
+        .transform = .{ .position = .{ .x = 100, .y = 100 } },
+        .kinetic = .{ .rotation = 0, .velocity = .{ .x = 0, .y = 0 },
         }
     });
 
@@ -61,12 +63,13 @@ pub fn main() !void {
         const deltatime = rl.getFrameTime();
         ecs.update(deltatime);
         var player = ecs.get_mut(player_id);
-        var player_kinetics = &player.kinetic.?;
-        const traction = level.get_traction(player_kinetics.position);
-        player_kinetics.speed_multiplier = traction.speed_multiplier();
-        player_kinetics.friction = traction.friction();
-        camera.target(player_kinetics.position);
-        const delta = player_kinetics.rotation + std.math.pi * 0.5 - camera.rotation;
+        const transform = &player.transform.?;
+        var kinetics = &player.kinetic.?;
+        const traction = level.get_traction(transform.position);
+        kinetics.speed_multiplier = traction.speed_multiplier();
+        kinetics.friction = traction.friction();
+        camera.target(transform.position);
+        const delta = kinetics.rotation + std.math.pi * 0.5 - camera.rotation;
         camera.rotation += delta / 12;
 
         level.update_intermediate_texture(camera);

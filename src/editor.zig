@@ -74,6 +74,7 @@ pub fn main() !void {
         .archetype = .Wall,
         .renderable = .{ .Stacked = cube_asset },
         .collision = .{ .x = 0 , .y = 0, .width = 40, .height = 40 },
+        .transform = .{ .position = .{ .x = 0, .y = 0 } },
     });
 
     var level: Level = try .init(Levels.level_one, allocator);
@@ -94,9 +95,9 @@ pub fn main() !void {
         const cursor_pos = util.get_mouse_pos(RENDER_WIDTH, WINDOW_WIDTH, RENDER_HEIGHT, WINDOW_HEIGHT);
         var cube = ecs.get_mut(cube_id);
 
-        cube.renderable.?.set_position(camera.get_absolute_position(cursor_pos));
+        cube.transform.?.position = camera.get_absolute_position(cursor_pos);
         if (cube.collision) |*collision| {
-            const pos =  cube.renderable.?.get_position();
+            const pos =  cube.transform.?.position;
             collision.x = pos.x - collision.width / 2;
             collision.y = pos.y - collision.height / 2;
         }
@@ -108,6 +109,7 @@ pub fn main() !void {
                 .controller = cube.controller,
                 .kinetic = cube.kinetic,
                 .renderable = cube.renderable,
+                .transform = cube.transform,
             });
             try add_stack.append(allocator, id);
         }

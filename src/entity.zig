@@ -48,8 +48,12 @@ pub const Controller = struct {
     }
 };
 
-pub const Kinetic = struct {
+pub const Transform = struct {
     position: rl.Vector2,
+    height: f32 = 0,
+};
+
+pub const Kinetic = struct {
     velocity: rl.Vector2,
     rotation: f32,
     friction: f32 = 0.8,
@@ -64,18 +68,12 @@ pub const Archetype = enum {
 };
 
 fn order_by_camera_position(camera: Camera, lhs: Entity, rhs: Entity) bool {
-    if (lhs.renderable) |renderable| {
-        const abs_position = switch (renderable) {
-            .Flat => |r| r.position,
-            .Stacked => |r| r.position,
-        };
+    if (lhs.transform) |lhs_transform| {
+        const abs_position = lhs_transform.position;
         const lhs_relative_position = camera.get_relative_position(abs_position);
 
-        if (rhs.renderable) |rhs_renderable| {
-            const rhs_abs_position = switch (rhs_renderable) {
-                .Flat => |r| r.position,
-                .Stacked => |r| r.position,
-            };
+        if (rhs.transform) |rhs_transform| {
+            const rhs_abs_position = rhs_transform.position;
             const rhs_relative_position = camera.get_relative_position(rhs_abs_position);
 
             return rhs_relative_position.y > lhs_relative_position.y;
@@ -95,6 +93,7 @@ pub const Entity = struct {
     kinetic: ?Kinetic = null,
     collision: ?rl.Rectangle = null,
     controller: ?Controller = null,
+    transform: ?Transform = null,
     shadow: ?Shadow = null,
     archetype: Archetype = .None,
 
@@ -105,11 +104,9 @@ pub const Entity = struct {
             if (self.renderable) |*renderable| {
                 switch (renderable.*) {
                     .Flat  => |*sprite| {
-                        sprite.position = kinetic.position;
                         sprite.rotation = kinetic.rotation;
                     },
                     .Stacked => |*sprite| {
-                        sprite.position = kinetic.position;
                         sprite.rotation = kinetic.rotation;
                     },
                 }
@@ -121,25 +118,34 @@ pub const Entity = struct {
             }
         }
 
+        if (self.collision) |*collision| {
+            if (self.transform) |transform| {
+                collision.x = transform.position.x - (collision.width / 2);
+                collision.y = transform.position.y - (collision.height / 2);
+            }
+        }
+
         return event;
     }
 
     pub fn draw(self: Self, camera: Camera) void {
-        if (self.renderable) |renderable| {
-            if (self.shadow) |shadow| {
-                const pos = renderable.get_position();
-                if (!camera.is_out_of_bounds(pos)) {
-                    rl.drawCircleV(camera.get_relative_position(pos), shadow.radius, shadow.color);
+        if (self.transform) |transform| {
+            const pos = transform.position;
+            if (self.renderable) |renderable| {
+                if (self.shadow) |shadow| {
+                    if (!camera.is_out_of_bounds(pos)) {
+                        rl.drawCircleV(camera.get_relative_position(pos), shadow.radius, shadow.color);
+                    }
                 }
-            }
 
-            switch (renderable) {
-                .Flat => |sprite| {
-                    if (!camera.is_out_of_bounds(sprite.position)) sprite.draw(camera);
-                },
-                .Stacked => |sprite| {
-                    if (!camera.is_out_of_bounds(sprite.position)) sprite.draw(camera);
-                },
+                switch (renderable) {
+                    .Flat => |sprite| {
+                        if (!camera.is_out_of_bounds(pos)) sprite.draw(camera, transform);
+                    },
+                    .Stacked => |sprite| {
+                        if (!camera.is_out_of_bounds(pos)) sprite.draw(camera, transform);
+                    },
+                }
             }
         }
     }
@@ -188,52 +194,57 @@ pub const ECS = struct {
 
         for (0..self.entities.items.len) |i| {
             var entity = &self.entities.items[i];
-            if (entity.kinetic) |*kinetic| {
-                if (entity.collision) |*collision| {
-                    const sample_pos = kinetic.position.add(kinetic.velocity.scale(deltatime).scale(kinetic.speed_multiplier));
-                    collision.x = sample_pos.x - collision.width / 2;
-                    var collided = false;
-                    for (0..self.entities.items.len) |o| {
-                        if (o == i) continue;
-                        const other = &self.entities.items[o];
-                        if (other.collision) |other_collision| {
-                            if (collision.checkCollision(other_collision)) {
-                                self.events.append(self.allocator, .{ .Collision = .{ .a = @intCast(i), .b = @intCast(o) } }) catch unreachable;
-                                collided = true;
+            if (entity.transform) |*transform| {
+                var position = transform.position;
+                if (entity.kinetic) |*kinetic| {
+                    if (entity.collision) |*collision| {
+                        const sample_pos = position.add(kinetic.velocity.scale(deltatime).scale(kinetic.speed_multiplier));
+                        collision.x = sample_pos.x - collision.width / 2;
+                        var collided = false;
+                        for (0..self.entities.items.len) |o| {
+                            if (o == i) continue;
+                            const other = &self.entities.items[o];
+                            if (other.collision) |other_collision| {
+                                if (collision.checkCollision(other_collision)) {
+                                    self.events.append(self.allocator, .{ .Collision = .{ .a = @intCast(i), .b = @intCast(o) } }) catch unreachable;
+                                    collided = true;
+                                }
                             }
                         }
-                    }
 
-                    if (collided) {
-                        collision.x = kinetic.position.x - collision.width / 2;
-                    } else {
-                        kinetic.position.x = sample_pos.x;
-                    }
+                        if (collided) {
+                            collision.x = position.x - collision.width / 2;
+                        } else {
+                            position.x = sample_pos.x;
+                        }
 
-                    collision.y = sample_pos.y - collision.height / 2;
-                    collided = false;
-                    for (0..self.entities.items.len) |o| {
-                        if (o == i) continue;
-                        const other = &self.entities.items[o];
-                        if (other.collision) |other_collision| {
-                            if (collision.checkCollision(other_collision)) {
-                                self.events.append(self.allocator, .{ .Collision = .{ .a = @intCast(i), .b = @intCast(o) } }) catch unreachable;
-                                collided = true;
+                        collision.y = sample_pos.y - collision.height / 2;
+                        collided = false;
+                        for (0..self.entities.items.len) |o| {
+                            if (o == i) continue;
+                            const other = &self.entities.items[o];
+                            if (other.collision) |other_collision| {
+                                if (collision.checkCollision(other_collision)) {
+                                    self.events.append(self.allocator, .{ .Collision = .{ .a = @intCast(i), .b = @intCast(o) } }) catch unreachable;
+                                    collided = true;
+                                }
                             }
                         }
+
+                        if (collided) {
+                            collision.y = position.y - collision.height / 2;
+                        } else {
+                            position.y = sample_pos.y;
+                        }
+                    } else {
+                        position = position.add(kinetic.velocity.scale(deltatime).scale(kinetic.speed_multiplier));
                     }
 
-                    if (collided) {
-                        collision.y = kinetic.position.y - collision.height / 2;
-                    } else {
-                        kinetic.position.y = sample_pos.y;
-                    }
-                } else {
-                    kinetic.position = kinetic.position.add(kinetic.velocity.scale(deltatime).scale(kinetic.speed_multiplier));
+                    kinetic.velocity.x *= kinetic.friction * deltatime;
+                    kinetic.velocity.y *= kinetic.friction * deltatime;
                 }
 
-                kinetic.velocity.x *= kinetic.friction * deltatime;
-                kinetic.velocity.y *= kinetic.friction * deltatime;
+                transform.position = position;
             }
         }
 

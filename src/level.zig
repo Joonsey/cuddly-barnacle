@@ -58,7 +58,7 @@ pub const Level = struct {
         archetype: entity.Archetype,
         renderable: ?renderer.Rendertypes,
         path: ?[:0]const u8,
-        position: ?rl.Vector2,
+        transform: ?entity.Transform,
         collision: ?rl.Rectangle,
     };
 
@@ -116,7 +116,7 @@ pub const Level = struct {
         var arr: std.ArrayListUnmanaged(entity.Entity) = .{};
         for (parser.value) |e| {
             if (e.path) |p| {
-                var renderable: renderer.Renderable = map.get(p[0..p.len]) orelse blk: {
+                const renderable: renderer.Renderable = map.get(p[0..p.len]) orelse blk: {
                     const val = switch (e.renderable.?) {
                         .Flat => renderer.Renderable{ .Flat = try renderer.Flat.init(p)},
                         .Stacked => renderer.Renderable{.Stacked = try renderer.Stacked.init(p)},
@@ -125,11 +125,11 @@ pub const Level = struct {
                     break :blk val;
                 };
 
-                renderable.set_position(e.position.?);
                 _ = try arr.append(allocator, .{
                     .archetype = e.archetype,
                     .collision = e.collision,
                     .renderable = renderable,
+                    .transform = e.transform,
                 });
             }
         }
@@ -154,10 +154,9 @@ pub const Level = struct {
         rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_tex_height"), &texture.height, .int);
         rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_tex_width"), &texture.width, .int);
 
-        const offset = camera.get_absolute_position(camera.position);
         rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_rotation"), &camera.rotation, .float);
-        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_offset_x"), &offset.x, .float);
-        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_offset_y"), &offset.y, .float);
+        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_offset_x"), &camera.position.x, .float);
+        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_offset_y"), &camera.position.y, .float);
 
         rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_time"), &@as(f32, @floatCast(rl.getTime())), .float);
         texture.drawPro(.{ .x = 0, .y = 0, .width = 720, .height = -480 }, .{ .x = 0, .y = 0, .width = 720, .height = 480 }, .init(0, 0), 0, .white);
@@ -184,15 +183,12 @@ pub const Level = struct {
                     .Stacked => |sprite| sprite.path,
                     .Flat => |sprite| sprite.path,
                 } else null,
-                .position = if (e.renderable) |renderable| switch (renderable) {
-                    .Stacked => |sprite| sprite.position,
-                    .Flat => |sprite| sprite.position,
-                } else null,
                 .renderable  = if (e.renderable) |renderable| switch (renderable) {
                     .Stacked => |_| .Stacked,
                     .Flat => |_| .Flat,
                 } else null,
                 .archetype = e.archetype,
+                .transform = e.transform,
             });
         }
         try std.json.stringify(arr.items, .{}, entity_file.writer());

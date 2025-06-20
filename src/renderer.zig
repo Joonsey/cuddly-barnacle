@@ -1,6 +1,8 @@
 const std = @import("std");
 const rl = @import("raylib");
 
+const entity = @import("entity.zig");
+
 
 pub const Camera = struct {
     position: rl.Vector2,
@@ -73,24 +75,10 @@ pub const Renderable = union(Rendertypes) {
     Flat: Flat,
 
     const Self = @This();
-    pub fn get_position(self: Self) rl.Vector2 {
-        return switch (self) {
-            .Flat => |r| r.position,
-            .Stacked => |r| r.position,
-        };
-    }
-
-    pub fn set_position(self: *Self, pos: rl.Vector2) void {
-        switch (self.*) {
-            .Flat => |*r| r.position = pos,
-            .Stacked => |*r| r.position = pos,
-        }
-    }
 };
 
 pub const Flat = struct {
     texture: rl.Texture,
-    position: rl.Vector2,
     rotation: f32,
     color: rl.Color = .white,
 
@@ -101,7 +89,6 @@ pub const Flat = struct {
         return .{
             .texture = try rl.loadTexture(path),
             .rotation = 0,
-            .position = .{ .x = 0, .y = 0 },
             .path = path,
         };
     }
@@ -110,12 +97,12 @@ pub const Flat = struct {
         return .{
             .texture = self.texture,
             .rotation = 0,
-            .position = .{ .x = 0, .y = 0 },
         };
     }
 
-    pub fn draw(self: Self, camera: Camera) void {
-        const relative_pos = camera.get_relative_position(self.position);
+    pub fn draw(self: Self, camera: Camera, transform: entity.Transform) void {
+        const position = transform.position;
+        const relative_pos = camera.get_relative_position(position);
 
         const texture = self.texture;
         const f_width: f32 = @floatFromInt(texture.width);
@@ -131,7 +118,6 @@ pub const Flat = struct {
 };
 pub const Stacked = struct {
     texture: rl.Texture,
-    position: rl.Vector2,
     rotation: f32,
     color: rl.Color = .white,
 
@@ -142,7 +128,6 @@ pub const Stacked = struct {
         return .{
             .texture = try rl.loadTexture(path),
             .rotation = 0,
-            .position = .{ .x = 0, .y = 0 },
             .path = path
         };
     }
@@ -151,15 +136,14 @@ pub const Stacked = struct {
         return .{
             .texture = self.texture,
             .rotation = 0,
-            .position = .{ .x = 0, .y = 0 },
             .path = self.path,
         };
     }
 
     // TODO cache this, i can draw more than 7000 without going below 70 fps
     // but maybe want to consider this at some point however
-    pub fn draw(self: Self, camera: Camera) void {
-        const relative_pos = camera.get_relative_position(self.position);
+    pub fn draw(self: Self, camera: Camera, transform: entity.Transform) void {
+        const relative_pos = camera.get_relative_position(transform.position);
 
         const texture = self.texture;
         const width = texture.width;
