@@ -124,6 +124,7 @@ pub const Level = struct {
     startup_entities: []entity.Entity,
     checkpoints: []Checkpoint,
     finish: Finish,
+    shader: rl.Shader,
 
     const BinEntity = struct {
         transform: entity.Transform,
@@ -143,6 +144,10 @@ pub const Level = struct {
             .startup_entities = try load_entities_from_file(levels_path ++ directory ++ "/entities", allocator),
             .checkpoints = try load_checkpoints_from_file(levels_path ++ directory ++ "/checkpoints", allocator),
             .finish = try load_finish_from_file(levels_path ++ directory ++ "/finish", allocator),
+            .shader = try rl.loadShader(
+                null,
+                "assets/shaders/world.fs",
+            )
         };
     }
 
@@ -229,7 +234,8 @@ pub const Level = struct {
         return .from_pixel(self.physics_image.getColor(px, py));
     }
 
-    pub fn draw(self: Self, shader: rl.Shader, camera: renderer.Camera) void {
+    pub fn draw(self: Self, camera: renderer.Camera) void {
+        const shader = self.shader;
         shader.activate();
         const texture = self.intermediate_texture.texture;
         rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_tex_height"), &texture.height, .int);

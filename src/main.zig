@@ -18,8 +18,6 @@ const Gamestate = struct {
     level: Level,
     camera: renderer.Camera,
 
-    level_shader: rl.Shader,
-
     allocator: std.mem.Allocator,
     const Self = @This();
     pub fn init(allocator: std.mem.Allocator, comptime lvl_path: []const u8) !Self {
@@ -28,11 +26,6 @@ const Gamestate = struct {
             .level = try .init(lvl_path, allocator),
             .camera = .init(RENDER_WIDTH, RENDER_HEIGHT),
             .allocator = allocator,
-
-            .level_shader = try rl.loadShader(
-                null,
-                "assets/shaders/world.fs",
-            ),
         };
     }
 
@@ -47,7 +40,7 @@ const Gamestate = struct {
     }
 
     pub fn draw(self: Self) void {
-        self.level.draw(self.level_shader, self.camera);
+        self.level.draw(self.camera);
         self.ecs.draw(self.camera);
 
 

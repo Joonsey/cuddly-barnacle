@@ -247,11 +247,6 @@ pub fn main() !void {
         .iterator = prefab.iter(allocator),
     };
 
-    const shader = try rl.loadShader(
-        null,
-        "assets/shaders/world.fs",
-    );
-
     rl.setTargetFPS(60);
     while (!rl.windowShouldClose()) {
         const deltatime = rl.getFrameTime();
@@ -280,7 +275,7 @@ pub fn main() !void {
         level.update_intermediate_texture(camera);
         scene.begin();
         rl.clearBackground(.black);
-        level.draw(shader, camera);
+        level.draw(camera);
         state.ecs.draw(camera);
         selected.draw(camera);
         scene.end();
