@@ -79,7 +79,6 @@ pub const Renderable = union(Rendertypes) {
 
 pub const Flat = struct {
     texture: rl.Texture,
-    rotation: f32,
     color: rl.Color = .white,
 
     path: [:0]const u8,
@@ -88,7 +87,6 @@ pub const Flat = struct {
     pub fn init(path: [:0]const u8) !Self {
         return .{
             .texture = try rl.loadTexture(path),
-            .rotation = 0,
             .path = path,
         };
     }
@@ -96,13 +94,14 @@ pub const Flat = struct {
     pub fn copy(self: Self) Self {
         return .{
             .texture = self.texture,
-            .rotation = 0,
         };
     }
 
     pub fn draw(self: Self, camera: Camera, transform: entity.Transform) void {
         const position = transform.position;
+        const rotation = transform.rotation;
         const relative_pos = camera.get_relative_position(position);
+
 
         const texture = self.texture;
         const f_width: f32 = @floatFromInt(texture.width);
@@ -111,14 +110,13 @@ pub const Flat = struct {
             .{ .x = 0, .y = 0, .width = f_width, .height = f_height},
             .{ .x = relative_pos.x, .y = relative_pos.y - transform.height, .width = f_width, .height = f_height},
             .{ .x = f_width / 2, .y = f_height / 2 },
-            std.math.radiansToDegrees(self.rotation - camera.rotation),
+            std.math.radiansToDegrees(rotation - camera.rotation),
             self.color,
         );
     }
 };
 pub const Stacked = struct {
     texture: rl.Texture,
-    rotation: f32,
     color: rl.Color = .white,
 
     path: [:0]const u8,
@@ -127,7 +125,6 @@ pub const Stacked = struct {
     pub fn init(path: [:0]const u8) !Self {
         return .{
             .texture = try rl.loadTexture(path),
-            .rotation = 0,
             .path = path
         };
     }
@@ -135,7 +132,6 @@ pub const Stacked = struct {
     pub fn copy(self: Self) Self {
         return .{
             .texture = self.texture,
-            .rotation = 0,
             .path = self.path,
         };
     }
@@ -144,6 +140,7 @@ pub const Stacked = struct {
     // but maybe want to consider this at some point however
     pub fn draw(self: Self, camera: Camera, transform: entity.Transform) void {
         const relative_pos = camera.get_relative_position(transform.position);
+        const rotation = transform.rotation;
 
         const texture = self.texture;
         const width = texture.width;
@@ -156,7 +153,7 @@ pub const Stacked = struct {
                 .{ .x = 0, .y = f_inverse_i * f_width, .width = f_width, .height = f_width},
                 .{ .x = relative_pos.x, .y = relative_pos.y - f_i - transform.height, .width = f_width, .height = f_width },
                 .{ .x = f_width / 2, .y = f_width / 2 },
-                std.math.radiansToDegrees(self.rotation - camera.rotation),
+                std.math.radiansToDegrees(rotation - camera.rotation),
                 self.color,
                 );
         }

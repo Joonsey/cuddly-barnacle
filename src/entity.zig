@@ -16,8 +16,8 @@ pub const Controller = struct {
         _ = self;
 
         const forward: rl.Vector2 = .{
-            .x = @cos(kinetic.rotation),
-            .y = @sin(kinetic.rotation),
+            .x = @cos(transform.rotation),
+            .y = @sin(transform.rotation),
         };
 
         const current_speed = kinetic.velocity.length();
@@ -57,7 +57,7 @@ pub const Controller = struct {
             if (drift.direction == 0 and transform.height == 0) drift.state = .none;
 
             if (rl.isKeyDown(.h)) {
-                kinetic.rotation += base_rotation_speed * 0.6 * drift.direction;
+                transform.rotation += base_rotation_speed * 0.6 * drift.direction;
             }
 
             if (rl.isKeyReleased(.h)) {
@@ -69,11 +69,11 @@ pub const Controller = struct {
         const rotation_speed = if (drift.state != .charging) base_rotation_speed else base_rotation_speed * 0.2;
 
         if (rl.isKeyDown(.a)) {
-            kinetic.rotation -= rotation_speed;
+            transform.rotation -= rotation_speed;
         }
 
         if (rl.isKeyDown(.d)) {
-            kinetic.rotation += rotation_speed;
+            transform.rotation += rotation_speed;
         }
     }
 };
@@ -81,6 +81,7 @@ pub const Controller = struct {
 pub const Transform = struct {
     position: rl.Vector2,
     height: f32 = 0,
+    rotation: f32 = 0,
 };
 
 pub const RaceContext = struct {
@@ -103,7 +104,6 @@ pub const Drift = struct {
 
 pub const Kinetic = struct {
     velocity: rl.Vector2,
-    rotation: f32,
     friction: f32 = 0.8,
     speed_multiplier: f32 = 1,
     weight: f32 = 20,
@@ -152,18 +152,6 @@ pub const Entity = struct {
     const Self = @This();
     pub fn update(self: *Self, deltatime: f32) ?Event {
         const event: ?Event = null;
-        if (self.kinetic) |kinetic| {
-            if (self.renderable) |*renderable| {
-                switch (renderable.*) {
-                    .Flat  => |*sprite| {
-                        sprite.rotation = kinetic.rotation;
-                    },
-                    .Stacked => |*sprite| {
-                        sprite.rotation = kinetic.rotation;
-                    },
-                }
-            }
-        }
         if (self.controller) |controller| {
             if (self.kinetic) |*kinetic| {
                 if (self.drift) |*drift|{
