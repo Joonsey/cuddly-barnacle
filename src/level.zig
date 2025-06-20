@@ -47,6 +47,11 @@ pub const Traction = enum {
     }
 };
 
+pub const Checkpoint = struct {
+    position: rl.Vector2,
+    radius: f32,
+};
+
 pub const Level = struct {
     physics_image: rl.Image,
     graphics_texture: rl.Texture,
@@ -54,6 +59,7 @@ pub const Level = struct {
     metadata: Metadata,
 
     startup_entities: []entity.Entity,
+    checkpoints: []Checkpoint,
 
     const BinEntity = struct {
         transform: entity.Transform,
@@ -71,6 +77,7 @@ pub const Level = struct {
             .intermediate_texture = try rl.loadRenderTexture(720, 480),
             .metadata = Metadata.load(levels_path ++ directory ++ "/metadata") catch .{},
             .startup_entities = try load_entities_from_file(levels_path ++ directory ++ "/entities", allocator),
+            .checkpoints = try load_checkpoints_from_file(levels_path ++ directory ++ "/checkpoints", allocator),
         };
     }
 
@@ -97,6 +104,19 @@ pub const Level = struct {
             .white,
         );
         self.intermediate_texture.end();
+    }
+
+    fn load_checkpoints_from_file(path: []const u8, allocator: std.mem.Allocator) ![]Checkpoint {
+        const file = try std.fs.cwd().openFile(path, .{});
+        defer file.close();
+
+        const buf = try file.readToEndAlloc(allocator, 200000000);
+        defer allocator.free(buf);
+
+        const parser = try std.json.parseFromSlice([]Checkpoint, allocator, buf, .{ .ignore_unknown_fields = true });
+        defer parser.deinit();
+
+        return try allocator.dupe(Checkpoint, parser.value);
     }
 
     fn load_entities_from_file(path: []const u8, allocator: std.mem.Allocator) ![]entity.Entity {
@@ -148,13 +168,21 @@ pub const Level = struct {
 
     pub fn deinit(self: Self, allocator: std.mem.Allocator) void {
         allocator.free(self.startup_entities);
+        allocator.free(self.checkpoints);
         self.graphics_texture.unload();
         self.physics_image.unload();
     }
 
-    pub fn save(self: *Self, entities: []entity.Entity, allocator: std.mem.Allocator, comptime directory: []const u8) !void {
+    pub fn save(self: *Self, entities: []entity.Entity, checkpoints: []Checkpoint, allocator: std.mem.Allocator, comptime directory: []const u8) !void {
         allocator.free(self.startup_entities);
         self.startup_entities = try allocator.dupe(entity.Entity, entities);
+
+        allocator.free(self.checkpoints);
+        self.checkpoints = try allocator.dupe(Checkpoint, checkpoints);
+
+        const checkpoints_file = try std.fs.cwd().createFile(levels_path ++ directory ++ "/checkpoints", .{});
+        defer checkpoints_file.close();
+        try std.json.stringify(self.checkpoints, .{}, checkpoints_file.writer());
 
         const entity_file = try std.fs.cwd().createFile(levels_path ++ directory ++ "/entities", .{});
         defer entity_file.close();
