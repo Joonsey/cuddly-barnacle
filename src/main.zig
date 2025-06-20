@@ -34,11 +34,14 @@ pub fn main() !void {
     level.load_ecs(&ecs);
 
     var tank = prefab.get(.tank);
-    tank.transform.?.position = .{ .x = 200, .y = 200 };
-    _ = ecs.spawn(tank);
+    for (0..11) |i| {
+        tank.transform.?.position = level.finish.get_spawn(i);
+        tank.kinetic = .{ .rotation = level.finish.get_direction(), .velocity = .{ .x = 0, .y = 0 }};
+        _ = ecs.spawn(tank);
+    }
 
-    tank.transform.?.position = .{ .x = 100, .y = 100 };
-    tank.kinetic = .{ .rotation = 0, .velocity = .{ .x = 0, .y = 0 }};
+    tank.transform.?.position = level.finish.get_spawn(11);
+    tank.kinetic = .{ .rotation = level.finish.get_direction(), .velocity = .{ .x = 0, .y = 0 }};
     tank.controller = .{};
     const player_id = ecs.spawn(tank);
 

@@ -81,6 +81,13 @@ pub const Finish = struct {
 
         return center.add(side_offset.add(back_offset));
     }
+
+    pub fn get_direction(self: Self) f32 {
+        const dir = self.right.subtract(self.left).normalize();
+        // idk what is a more ergonomic solution
+        // i just offset by a quarter radian
+        return std.math.atan2(dir.y, dir.x) - std.math.pi * 0.5;
+    }
 };
 
 pub const Level = struct {
