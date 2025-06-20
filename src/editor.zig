@@ -5,6 +5,7 @@ const renderer = @import("renderer.zig");
 const entity = @import("entity.zig");
 const Level = @import("level.zig").Level;
 const Levels = @import("level.zig").Levels;
+const Checkpoint = @import("level.zig").Checkpoint;
 const util = @import("util.zig");
 
 const prefab = @import("prefabs.zig");
@@ -55,6 +56,115 @@ fn handle_input(camera: *renderer.Camera) void {
     camera.target(position);
 }
 
+const Selected = union(enum) {
+    None: void,
+    Entity: entity.Entity,
+    Checkpoints: struct {
+        points: std.ArrayListUnmanaged(Checkpoint),
+        current: usize = 0,
+    },
+
+    const Self = @This();
+    pub fn draw(self: Self, camera: renderer.Camera) void {
+        switch (self) {
+            .Entity => |e| e.draw(camera),
+            .Checkpoints => |c| {
+                for (c.points.items, 0..) |point, i| {
+                    const relative_pos = camera.get_relative_position(point.position);
+                    rl.drawCircleV(relative_pos, point.radius, .{ .r = 255, .b = 0, .g = 0, .a = 100 });
+
+                    if (i != 0) {
+                        const previous_point = c.points.items[i - 1];
+                        const previous_relative_pos = camera.get_relative_position(previous_point.position);
+                        rl.drawLineV(previous_relative_pos, relative_pos, .black);
+                    }
+                }
+
+                if (c.points.items.len > 0 and c.points.items.len > c.current) {
+                    const current = c.points.items[c.current];
+                    const relative_pos = camera.get_relative_position(current.position);
+                    rl.drawCircleV(relative_pos, current.radius, .{ .r = 0, .b = 0, .g = 255, .a = 100 });
+                }
+        },
+            .None => {},
+        }
+    }
+
+    pub fn update(self: *Self, camera: renderer.Camera, cursor_pos: rl.Vector2, state: *State) void {
+        const abs_position = camera.get_absolute_position(cursor_pos);
+        switch (self.*) {
+            .Entity => |*e| {
+                e.transform = .{ .position = abs_position };
+
+                if (rl.isMouseButtonPressed(.left)) {
+                    const id = state.ecs.spawn(e.*);
+                    state.add_stack.append(state.allocator, id) catch unreachable;
+                }
+
+                if (rl.isKeyPressed(.z)) {
+                    const prev = state.iterator.previous();
+                    e.collision = prev.collision;
+                    e.renderable = prev.renderable;
+                    e.archetype = prev.archetype;
+                    e.shadow = prev.shadow;
+                    e.prefab = prev.prefab;
+                }
+
+                if (rl.isKeyPressed(.x)) {
+                    const next = state.iterator.next();
+                    e.collision = next.collision;
+                    e.renderable = next.renderable;
+                    e.archetype = next.archetype;
+                    e.shadow = next.shadow;
+                    e.prefab = next.prefab;
+                }
+            },
+            .Checkpoints => |*c| {
+                if (c.current < c.points.items.len) {
+                    const current_cp = &c.points.items[c.current];
+
+                    current_cp.position = abs_position;
+                    if (rl.isMouseButtonPressed(.left)) {
+                        c.current = c.points.items.len;
+                    }
+
+                    current_cp.radius += rl.getMouseWheelMove() * 5;
+                    state.radius = current_cp.radius;
+
+                } else {
+                    const new_cp = Checkpoint{ .position = abs_position, .radius = state.radius };
+
+                    if (rl.isMouseButtonPressed(.left)) {
+                        c.current += 1;
+                        c.points.append(state.allocator, new_cp) catch unreachable;
+                    }
+                }
+                if (rl.isKeyPressed(.x)) {
+                    c.current = inc(c.current, 1, c.points.items.len);
+                }
+                if (rl.isKeyPressed(.z)) {
+                    c.current = inc(c.current, -1, c.points.items.len);
+                }
+        },
+            .None => {},
+        }
+    }
+};
+
+fn inc(current: usize, delta: i32, max: usize) usize {
+    return @intCast(@mod((@as(i32, @intCast(current)) + delta), @as(i32, @intCast(max))));
+}
+
+const State = struct {
+    allocator: std.mem.Allocator,
+    add_stack: std.ArrayListUnmanaged(entity.EntityId),
+    level: Level,
+    ecs: entity.ECS,
+    iterator: prefab.Iterator,
+
+    radius: f32 = 64,
+};
+
 pub fn main() !void {
     rl.initWindow(@intFromFloat(WINDOW_WIDTH), @intFromFloat(WINDOW_HEIGHT), "test");
     var DBA = std.heap.DebugAllocator(.{}){};
@@ -74,7 +184,7 @@ pub fn main() !void {
     try prefab.init(allocator);
     defer prefab.deinit(allocator);
 
-    var selected_entity = prefab.get(.cube);
+    var selected: Selected = .{ .Entity = prefab.get(.cube) };
 
     var level: Level = try .init(Levels.level_one, allocator);
     defer level.deinit(allocator);
@@ -82,6 +192,17 @@ pub fn main() !void {
 
     const scene = try rl.loadRenderTexture(RENDER_WIDTH, RENDER_HEIGHT);
     var camera = renderer.Camera.init(RENDER_WIDTH, RENDER_HEIGHT);
+
+    var checkpoints: std.ArrayListUnmanaged(Checkpoint) = .{};
+    defer checkpoints.deinit(allocator);
+
+    var state: State = .{
+        .add_stack = add_stack,
+        .allocator = allocator,
+        .ecs = ecs,
+        .level = level,
+        .iterator = prefab.iter(allocator),
+    };
 
     const shader = try rl.loadShader(
         null,
@@ -93,29 +214,28 @@ pub fn main() !void {
         const deltatime = rl.getFrameTime();
         const cursor_pos = util.get_mouse_pos(RENDER_WIDTH, WINDOW_WIDTH, RENDER_HEIGHT, WINDOW_HEIGHT);
 
-        const abs_position = camera.get_absolute_position(cursor_pos);
-        selected_entity.transform = .{ .position = abs_position };
+        selected.update(camera, cursor_pos, &state);
 
-        if (rl.isMouseButtonPressed(.left)) {
-            const id = ecs.spawn(selected_entity);
-            try add_stack.append(allocator, id);
-        }
-
-        if (rl.isKeyPressed(.z) and (rl.isKeyDown(.left_control))) if (add_stack.pop()) |id| ecs.despawn(id);
+        if (rl.isKeyPressed(.z) and (rl.isKeyDown(.left_control))) if (add_stack.pop()) |id| state.ecs.despawn(id);
         if (rl.isKeyPressed(.r) and (rl.isKeyDown(.left_control))) {
-            try level.save(ecs.entities.items, level.checkpoints, allocator, Levels.level_one);
+            try level.save(state.ecs.entities.items, level.checkpoints, allocator, Levels.level_one);
             std.log.debug("SVAED!", .{});
         }
 
-        ecs.update(deltatime);
+        if (rl.isKeyPressed(.c)) {
+            selected = .{ .Checkpoints = .{ .points = checkpoints } };
+        }
+
+
+        state.ecs.update(deltatime);
         handle_input(&camera);
 
         level.update_intermediate_texture(camera);
         scene.begin();
         rl.clearBackground(.black);
         level.draw(shader, camera);
-        ecs.draw(camera);
-        selected_entity.draw(camera);
+        state.ecs.draw(camera);
+        selected.draw(camera);
         scene.end();
 
         // drawing scene at desired resolution
