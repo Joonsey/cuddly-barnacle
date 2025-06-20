@@ -110,7 +110,7 @@ pub const Level = struct {
             .metadata = Metadata.load(levels_path ++ directory ++ "/metadata") catch .{},
             .startup_entities = try load_entities_from_file(levels_path ++ directory ++ "/entities", allocator),
             .checkpoints = try load_checkpoints_from_file(levels_path ++ directory ++ "/checkpoints", allocator),
-            .finish = undefined,
+            .finish = try load_finish_from_file(levels_path ++ directory ++ "/finish", allocator),
         };
     }
 
@@ -150,6 +150,19 @@ pub const Level = struct {
         defer parser.deinit();
 
         return try allocator.dupe(Checkpoint, parser.value);
+    }
+
+    fn load_finish_from_file(path: []const u8, allocator: std.mem.Allocator) !Finish {
+        const file = try std.fs.cwd().openFile(path, .{});
+        defer file.close();
+
+        const buf = try file.readToEndAlloc(allocator, 200000000);
+        defer allocator.free(buf);
+
+        const parser = try std.json.parseFromSlice(Finish , allocator, buf, .{ .ignore_unknown_fields = true });
+        defer parser.deinit();
+
+        return parser.value;
     }
 
     fn load_entities_from_file(path: []const u8, allocator: std.mem.Allocator) ![]entity.Entity {
@@ -206,12 +219,14 @@ pub const Level = struct {
         self.physics_image.unload();
     }
 
-    pub fn save(self: *Self, entities: []entity.Entity, checkpoints: []Checkpoint, allocator: std.mem.Allocator, comptime directory: []const u8) !void {
+    pub fn save(self: *Self, entities: []entity.Entity, checkpoints: []Checkpoint, finish: Finish, allocator: std.mem.Allocator, comptime directory: []const u8) !void {
         allocator.free(self.startup_entities);
         self.startup_entities = try allocator.dupe(entity.Entity, entities);
 
         allocator.free(self.checkpoints);
         self.checkpoints = try allocator.dupe(Checkpoint, checkpoints);
+
+        self.finish = finish;
 
         const checkpoints_file = try std.fs.cwd().createFile(levels_path ++ directory ++ "/checkpoints", .{});
         defer checkpoints_file.close();
@@ -219,6 +234,11 @@ pub const Level = struct {
 
         const entity_file = try std.fs.cwd().createFile(levels_path ++ directory ++ "/entities", .{});
         defer entity_file.close();
+
+        const finish_file = try std.fs.cwd().createFile(levels_path ++ directory ++ "/finish", .{});
+        defer finish_file.close();
+        try std.json.stringify(self.finish, .{}, finish_file.writer());
+
 
         var arr: std.ArrayListUnmanaged(BinEntity) = .{};
         defer arr.deinit(allocator);
