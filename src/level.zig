@@ -2,6 +2,7 @@ const std = @import("std");
 const rl = @import("raylib");
 const renderer = @import("renderer.zig");
 const entity = @import("entity.zig");
+const prefab = @import("prefabs.zig");
 
 
 pub const Levels = struct {
@@ -55,17 +56,15 @@ pub const Level = struct {
     startup_entities: []entity.Entity,
 
     const BinEntity = struct {
-        archetype: entity.Archetype,
-        renderable: ?renderer.Rendertypes,
-        path: ?[:0]const u8,
-        transform: ?entity.Transform,
-        collision: ?rl.Rectangle,
+        transform: entity.Transform,
+        prefab: prefab.Prefab,
     };
 
     const Self = @This();
     const levels_path = "assets/levels/";
     pub fn init(comptime directory: []const u8, allocator: std.mem.Allocator) !Self {
         const text = try rl.loadTexture(levels_path ++ directory ++ "/graphics.png");
+
         return .{
             .physics_image = try rl.loadImage(levels_path ++ directory ++ "/physics.png"),
             .graphics_texture = text,
@@ -110,28 +109,12 @@ pub const Level = struct {
         const parser = try std.json.parseFromSlice([]BinEntity, allocator, buf, .{ .ignore_unknown_fields = true });
         defer parser.deinit();
 
-        var map: std.StringHashMapUnmanaged(renderer.Renderable) = .{};
-        defer map.clearAndFree(allocator);
-
         var arr: std.ArrayListUnmanaged(entity.Entity) = .{};
         for (parser.value) |e| {
-            if (e.path) |p| {
-                const renderable: renderer.Renderable = map.get(p[0..p.len]) orelse blk: {
-                    const val = switch (e.renderable.?) {
-                        .Flat => renderer.Renderable{ .Flat = try renderer.Flat.init(p)},
-                        .Stacked => renderer.Renderable{.Stacked = try renderer.Stacked.init(p)},
-                    };
-                    try map.put(allocator, p[0..p.len], val);
-                    break :blk val;
-                };
+            var ent = prefab.get(e.prefab);
+            ent.transform = e.transform;
 
-                _ = try arr.append(allocator, .{
-                    .archetype = e.archetype,
-                    .collision = e.collision,
-                    .renderable = renderable,
-                    .transform = e.transform,
-                });
-            }
+            try arr.append(allocator, ent);
         }
 
         return arr.toOwnedSlice(allocator);
@@ -170,26 +153,21 @@ pub const Level = struct {
     }
 
     pub fn save(self: *Self, entities: []entity.Entity, allocator: std.mem.Allocator, comptime directory: []const u8) !void {
-        self.startup_entities = entities;
+        allocator.free(self.startup_entities);
+        self.startup_entities = try allocator.dupe(entity.Entity, entities);
 
         const entity_file = try std.fs.cwd().createFile(levels_path ++ directory ++ "/entities", .{});
         defer entity_file.close();
 
         var arr: std.ArrayListUnmanaged(BinEntity) = .{};
+        defer arr.deinit(allocator);
         for (entities) |e| {
-            _ = try arr.append(allocator, .{
-                .collision = e.collision,
-                .path = if (e.renderable) |renderable| switch (renderable) {
-                    .Stacked => |sprite| sprite.path,
-                    .Flat => |sprite| sprite.path,
-                } else null,
-                .renderable  = if (e.renderable) |renderable| switch (renderable) {
-                    .Stacked => |_| .Stacked,
-                    .Flat => |_| .Flat,
-                } else null,
-                .archetype = e.archetype,
-                .transform = e.transform,
-            });
+            if (e.prefab) |pre| {
+                _ = try arr.append(allocator, .{
+                    .transform = e.transform.?,
+                    .prefab = pre,
+                });
+            }
         }
         try std.json.stringify(arr.items, .{}, entity_file.writer());
 

@@ -7,6 +7,8 @@ const Level = @import("level.zig").Level;
 const Levels = @import("level.zig").Levels;
 const util = @import("util.zig");
 
+const prefab = @import("prefabs.zig");
+
 var WINDOW_WIDTH: f32 = 1600;
 var WINDOW_HEIGHT: f32 = 900;
 const RENDER_WIDTH: f32 = 720;
@@ -24,7 +26,7 @@ fn handle_input(camera: *renderer.Camera) void {
         .y = @sin(camera.rotation + std.math.pi * 0.5),
     };
 
-    const accel = 15;
+    const accel = 70;
     var position = camera.position;
     if (rl.isKeyDown(.d)) {
         position.x += accel * forward.x;
@@ -69,13 +71,10 @@ pub fn main() !void {
     var add_stack: std.ArrayListUnmanaged(entity.EntityId) = .{};
     defer add_stack.deinit(allocator);
 
-    const cube_asset = try renderer.Stacked.init("assets/cube.png");
-    const cube_id = ecs.spawn(.{
-        .archetype = .Wall,
-        .renderable = .{ .Stacked = cube_asset },
-        .collision = .{ .x = 0 , .y = 0, .width = 40, .height = 40 },
-        .transform = .{ .position = .{ .x = 0, .y = 0 } },
-    });
+    try prefab.init(allocator);
+    defer prefab.deinit(allocator);
+
+    var selected_entity = prefab.get(.cube);
 
     var level: Level = try .init(Levels.level_one, allocator);
     defer level.deinit(allocator);
@@ -93,24 +92,12 @@ pub fn main() !void {
     while (!rl.windowShouldClose()) {
         const deltatime = rl.getFrameTime();
         const cursor_pos = util.get_mouse_pos(RENDER_WIDTH, WINDOW_WIDTH, RENDER_HEIGHT, WINDOW_HEIGHT);
-        var cube = ecs.get_mut(cube_id);
 
-        cube.transform.?.position = camera.get_absolute_position(cursor_pos);
-        if (cube.collision) |*collision| {
-            const pos =  cube.transform.?.position;
-            collision.x = pos.x - collision.width / 2;
-            collision.y = pos.y - collision.height / 2;
-        }
+        const abs_position = camera.get_absolute_position(cursor_pos);
+        selected_entity.transform = .{ .position = abs_position };
 
         if (rl.isMouseButtonPressed(.left)) {
-            const id = ecs.spawn(.{
-                .archetype = cube.archetype,
-                .collision = cube.collision,
-                .controller = cube.controller,
-                .kinetic = cube.kinetic,
-                .renderable = cube.renderable,
-                .transform = cube.transform,
-            });
+            const id = ecs.spawn(selected_entity);
             try add_stack.append(allocator, id);
         }
 
@@ -128,6 +115,7 @@ pub fn main() !void {
         rl.clearBackground(.black);
         level.draw(shader, camera);
         ecs.draw(camera);
+        selected_entity.draw(camera);
         scene.end();
 
         // drawing scene at desired resolution

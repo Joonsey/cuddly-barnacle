@@ -1,5 +1,6 @@
 const std = @import("std");
 const renderer = @import("renderer.zig");
+const prefab = @import("prefabs.zig");
 const rl = @import("raylib");
 const Camera = renderer.Camera;
 const Renderable = renderer.Renderable;
@@ -96,6 +97,7 @@ pub const Entity = struct {
     transform: ?Transform = null,
     shadow: ?Shadow = null,
     archetype: Archetype = .None,
+    prefab: ?prefab.Prefab = null,
 
     const Self = @This();
     pub fn update(self: *Self, deltatime: f32) ?Event {

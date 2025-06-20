@@ -6,6 +6,8 @@ const entity = @import("entity.zig");
 const Level = @import("level.zig").Level;
 const Levels = @import("level.zig").Levels;
 
+const prefab = @import("prefabs.zig");
+
 var WINDOW_WIDTH: i32 = 1600;
 var WINDOW_HEIGHT: i32 = 900;
 const RENDER_WIDTH: i32 = 720;
@@ -24,31 +26,21 @@ pub fn main() !void {
     var ecs: entity.ECS = .init(allocator);
     defer ecs.deinit();
 
-    var tank = try renderer.Stacked.init("assets/tank.png");
+    try prefab.init(allocator);
+    defer prefab.deinit(allocator);
 
     var level: Level = try .init(Levels.level_one, allocator);
     defer level.deinit(allocator);
     level.load_ecs(&ecs);
-    const player_id = ecs.spawn(.{
-        .archetype = .Car,
-        .controller = .{},
-        .renderable = .{ .Stacked = tank.copy() },
-        .collision = .{ .x = 0, .y = 0, .width = 18, .height = 18 },
-        .shadow = .{ .radius = 9 },
-        .transform = .{ .position = .{ .x = 140, .y = 140 } },
-        .kinetic = .{ .rotation = 0, .velocity = .{ .x = 0, .y = 0 },
-        }
-    });
 
-    _ = ecs.spawn(.{
-        .archetype = .Car,
-        .renderable = .{ .Stacked = tank.copy() },
-        .shadow = .{ .radius = 9 },
-        .collision = .{ .x = 0, .y = 0, .width = 18, .height = 18 },
-        .transform = .{ .position = .{ .x = 100, .y = 100 } },
-        .kinetic = .{ .rotation = 0, .velocity = .{ .x = 0, .y = 0 },
-        }
-    });
+    var tank = prefab.get(.tank);
+    tank.transform.?.position = .{ .x = 200, .y = 200 };
+    _ = ecs.spawn(tank);
+
+    tank.transform.?.position = .{ .x = 100, .y = 100 };
+    tank.kinetic = .{ .rotation = 0, .velocity = .{ .x = 0, .y = 0 }};
+    tank.controller = .{};
+    const player_id = ecs.spawn(tank);
 
     const scene = try rl.loadRenderTexture(RENDER_WIDTH, RENDER_HEIGHT);
     var camera = renderer.Camera.init(RENDER_WIDTH, RENDER_HEIGHT);
