@@ -258,7 +258,7 @@ pub fn main() !void {
         if (rl.isKeyPressed(.z) and (rl.isKeyDown(.left_control))) if (add_stack.pop()) |id| state.ecs.despawn(id);
         if (rl.isKeyPressed(.r) and (rl.isKeyDown(.left_control))) {
             try level.save(state.ecs.entities.items, state.level.checkpoints, state.level.finish, allocator, Levels.level_one);
-            std.log.debug("SVAED!", .{});
+            std.log.debug("SAVED!", .{});
         }
 
         if (rl.isKeyPressed(.c)) {
