@@ -6,6 +6,7 @@ const entity = @import("entity.zig");
 const Level = @import("level.zig").Level;
 const Levels = @import("level.zig").Levels;
 const Checkpoint = @import("level.zig").Checkpoint;
+const Finish = @import("level.zig").Finish;
 const util = @import("util.zig");
 
 const prefab = @import("prefabs.zig");
@@ -63,9 +64,20 @@ const Selected = union(enum) {
         points: std.ArrayListUnmanaged(Checkpoint),
         current: usize = 0,
     },
+    Finish: Finish,
 
     const Self = @This();
+    fn draw_text(self: Self) void {
+        const text = switch (self) {
+            .Entity => "Entity",
+            .Checkpoints => "Checkpoints",
+            .Finish => "Finish",
+            .None => "",
+        };
+        rl.drawText(text, 0, 16, 20, .white);
+    }
     pub fn draw(self: Self, camera: renderer.Camera) void {
+        draw_text(self);
         switch (self) {
             .Entity => |e| e.draw(camera),
             .Checkpoints => |c| {
@@ -84,6 +96,24 @@ const Selected = union(enum) {
                     const current = c.points.items[c.current];
                     const relative_pos = camera.get_relative_position(current.position);
                     rl.drawCircleV(relative_pos, current.radius, .{ .r = 0, .b = 0, .g = 255, .a = 100 });
+                }
+        },
+            .Finish => |f| {
+                const left = camera.get_relative_position(f.left);
+                const right = camera.get_relative_position(f.right);
+                rl.drawLineV(left, right, .blue);
+                rl.drawText("left", @intFromFloat(left.x), @intFromFloat(left.y), 10, .white);
+                rl.drawText("right", @intFromFloat(right.x), @intFromFloat(right.y), 10, .white);
+
+                for (0..12) |i| {
+                    const spawn = f.get_spawn(i);
+                    const rel_spawn = camera.get_relative_position(spawn);
+
+                    const f_i: f32 = @floatFromInt(i);
+
+                    var color: rl.Color = .purple;
+                    color.r = @intFromFloat(f_i / 12 * 255);
+                    rl.drawCircleV(rel_spawn, 9, color);
                 }
         },
             .None => {},
@@ -145,6 +175,15 @@ const Selected = union(enum) {
                 if (rl.isKeyPressed(.z)) {
                     c.current = inc(c.current, -1, c.points.items.len);
                 }
+        },
+            .Finish => |*f| {
+                if (rl.isMouseButtonPressed(.left)) {
+                    f.left = abs_position;
+                } else if (rl.isMouseButtonPressed(.right)) {
+                    f.right = abs_position;
+                }
+
+                state.level.finish = f.*;
         },
             .None => {},
         }
@@ -224,6 +263,10 @@ pub fn main() !void {
 
         if (rl.isKeyPressed(.c)) {
             selected = .{ .Checkpoints = .{ .points = checkpoints } };
+        }
+
+        if (rl.isKeyPressed(.f)) {
+            selected = .{ .Finish = state.level.finish };
         }
 
 

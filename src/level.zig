@@ -52,6 +52,37 @@ pub const Checkpoint = struct {
     radius: f32,
 };
 
+pub const Finish = struct {
+    left: rl.Vector2,
+    right: rl.Vector2,
+
+    const Self = @This();
+    pub fn get_spawn(self: Self, i: usize) rl.Vector2 {
+        const center = rl.Vector2{
+            .x = (self.left.x + self.right.x) * 0.5,
+            .y = (self.left.y + self.right.y) * 0.5,
+        };
+
+        const max_back_offset = 75;
+
+        const dir = self.right.subtract(self.left).normalize();
+
+        const perp = rl.Vector2{ .x = -dir.y, .y = dir.x };
+
+        const back = rl.Vector2{ .x = -dir.x, .y = -dir.y };
+
+        const spacing_side: f32 = 22.0; // pixels between cars side by side
+        const spacing_back: f32 = 22.0; // pixels between rows
+
+        const side_index: f32 = @as(f32, @floatFromInt(i % 2)) * 2.0 - 1.0; // -1, 1, -1, 1...
+        const side_offset = back.scale(side_index * spacing_side * @as(f32, @floatFromInt(i / 2)));
+
+        const back_offset = perp.scale(@mod(spacing_back * @as(f32, @floatFromInt(i / 2)), max_back_offset));
+
+        return center.add(side_offset.add(back_offset));
+    }
+};
+
 pub const Level = struct {
     physics_image: rl.Image,
     graphics_texture: rl.Texture,
@@ -60,6 +91,7 @@ pub const Level = struct {
 
     startup_entities: []entity.Entity,
     checkpoints: []Checkpoint,
+    finish: Finish,
 
     const BinEntity = struct {
         transform: entity.Transform,
@@ -78,6 +110,7 @@ pub const Level = struct {
             .metadata = Metadata.load(levels_path ++ directory ++ "/metadata") catch .{},
             .startup_entities = try load_entities_from_file(levels_path ++ directory ++ "/entities", allocator),
             .checkpoints = try load_checkpoints_from_file(levels_path ++ directory ++ "/checkpoints", allocator),
+            .finish = undefined,
         };
     }
 
