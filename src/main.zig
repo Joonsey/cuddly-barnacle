@@ -94,11 +94,202 @@ const Tracks = struct {
     }
 };
 
+const Particles = struct {
+    const Spark = struct {
+        scale: f32 = 1.0,
+        force: f32 = 3.0,
+        alt_color: rl.Color,
+    };
+
+    const ParticleType = union(enum) {
+        Rectangle: rl.Vector2,
+        Spark: Spark,
+    };
+
+    const Particle = struct {
+        position: rl.Vector2,
+        velocity: rl.Vector2 = .init(0, 0),
+        rotation: f32 = 0,
+        lifetime: f32,
+        color: rl.Color,
+        kind: ParticleType,
+    };
+
+    particles: std.ArrayListUnmanaged(Particle) = .{},
+
+    allocator: std.mem.Allocator,
+    passed_frames: u32 = 0,
+    particle_index: u32 = 0,
+    const Self = @This();
+    pub fn init(allocator: std.mem.Allocator) Self {
+        return .{
+            .allocator = allocator,
+        };
+    }
+
+    pub fn deinit(self:* Self) void {
+        self.particles.clearAndFree(self.allocator);
+    }
+
+    pub fn update(self: *Self, deltatime: f32, ecs: entity.ECS) void {
+        self.passed_frames += 1;
+        for (self.particles.items) |*particle| {
+            particle.lifetime = @max(0, particle.lifetime - deltatime);
+            particle.position = particle.position.add(particle.velocity.scale(deltatime));
+        }
+
+        const max = self.particles.items.len;
+        var i: usize = 0;
+        for (0..max) |_| {
+            const particle = self.particles.items[i];
+            if (particle.lifetime <= 0) {
+                _ = self.particles.orderedRemove(i);
+            } else {
+                i += 1;
+            }
+        }
+
+        const interval = 2;
+        if (self.passed_frames % interval != 0) return;
+
+        self.particle_index += 1;
+        const back_velocity = 5;
+        const side_velocity = 12;
+        for (ecs.entities.items) |e| {
+            if (e.transform) |transform| {
+                if (transform.height != 0) continue;
+                const forward = rl.Vector2{ .x = @cos(transform.rotation), .y = @sin(transform.rotation) };
+                const perp = rl.Vector2{ .x = -forward.y, .y = forward.x };
+
+                const side = perp.scale(@sin(@as(f32, @floatFromInt(self.passed_frames))));
+                const dir = side.scale(side_velocity).subtract(forward.scale(back_velocity));
+
+                const pos = transform.position.add(side.scale(3));
+
+                if (e.kinetic) |kinetic| {
+                    const length = kinetic.velocity.length();
+                    if (length == 0) continue;
+                    if (self.particle_index % 4 == 0) {
+                        self.particles.append(self.allocator, Particle{
+                            .position = pos,
+                            .velocity = dir.scale(0.7),
+                            .lifetime = 1,
+                            .color = .brown,
+                            .kind = .{.Rectangle = .{ .x = 2, .y = 2 }},
+                            .rotation = transform.rotation,
+                        }) catch unreachable;
+                    } else {
+                        self.particles.append(self.allocator, Particle{
+                            .position = pos,
+                            .velocity = dir.scale(0.7),
+                            .lifetime = 1,
+                            .color = .dark_brown,
+                            .kind = .{.Rectangle = .{ .x = 2, .y = 2 }},
+                            .rotation = transform.rotation,
+                        }) catch unreachable;
+                    }
+                }
+                if (e.drift) |drift| {
+                    switch (drift.state) {
+                        .boosting => {
+                            self.particles.append(self.allocator, Particle{
+                                .position = pos,
+                                .velocity = dir,
+                                .lifetime = 10,
+                                .color = .blue,
+                                .kind = .{.Rectangle = .{ .x = 10, .y = 10 }},
+                                .rotation = transform.rotation,
+                            }) catch unreachable;
+                        },
+                        .charging => {
+                            if (self.particle_index % 4 == 0) {
+                                self.particles.append(self.allocator, Particle{
+                                    .position = pos,
+                                    .velocity = dir.scale(1.2),
+                                    .lifetime = 1,
+                                    .color = .white,
+                                    .kind = .{.Spark = .{ .scale = 5, .alt_color = .white, .force = 4 }},
+                                    .rotation = transform.rotation,
+                                }) catch unreachable;
+                            } else if (self.particle_index % 3 == 0) {
+                                self.particles.append(self.allocator, Particle{
+                                    .position = pos,
+                                    .velocity = dir.scale(0.8),
+                                    .lifetime = 0.8,
+                                    .color = .gray,
+                                    .kind = .{.Spark = .{ .scale = 5, .alt_color = .gray, .force = 2 }},
+                                    .rotation = transform.rotation,
+                                }) catch unreachable;
+                            } else if (self.particle_index % 2 == 0) {
+                                self.particles.append(self.allocator, Particle{
+                                    .position = pos,
+                                    .velocity = dir.scale(1),
+                                    .lifetime = 1,
+                                    .color = .light_gray,
+                                    .kind = .{.Spark = .{ .scale = 5, .alt_color = .light_gray, .force = 2 }},
+                                    .rotation = transform.rotation,
+                                }) catch unreachable;
+                            }
+                        },
+                        .none => {},
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn draw(self: Self, camera: renderer.Camera) void {
+        for (self.particles.items) |particle| {
+            if (camera.is_out_of_bounds(particle.position)) continue;
+            const rel_position = camera.get_relative_position(particle.position);
+            switch (particle.kind) {
+                .Rectangle => |size| {
+                    //rl.drawRectangleV(rel_position, size, particle.color);
+                    rl.drawRectanglePro(.{ .x = rel_position.x, .y = rel_position.y, .width = size.x, .height = size.y }, .{ .x = size.x / 2, .y = size.y / 2 }, particle.rotation, particle.color);
+                },
+                .Spark => |spark| {
+                    const lifetime_scaled = particle.lifetime * spark.scale;
+                    const angle = particle.rotation;
+
+                    const front: rl.Vector2 = .{
+                        .x = particle.position.x + @cos(angle) * lifetime_scaled,
+                        .y = particle.position.y + @sin(angle) * lifetime_scaled,
+                    };
+
+                    const side1: rl.Vector2 = .{
+                        .x = particle.position.x + @cos(angle + std.math.pi / 2.0) * lifetime_scaled * 0.3,
+                        .y = particle.position.y + @sin(angle + std.math.pi / 2.0) * lifetime_scaled * 0.3,
+                    };
+
+                    const back: rl.Vector2 = .{
+                        .x = particle.position.x - @cos(angle) * lifetime_scaled * 3.5,
+                        .y = particle.position.y - @sin(angle) * lifetime_scaled * 3.5,
+                    };
+
+                    const side2: rl.Vector2 = .{
+                        .x = particle.position.x + @cos(angle - std.math.pi / 2.0) * lifetime_scaled * 0.3,
+                        .y = particle.position.y + @sin(angle - std.math.pi / 2.0) * lifetime_scaled * 0.3,
+                    };
+
+                    const p1 = camera.get_relative_position(front);
+                    const p2 = camera.get_relative_position(side1);
+                    const p3 = camera.get_relative_position(back);
+                    const p4 = camera.get_relative_position(side2);
+
+                    rl.drawTriangle(p3, p2, p1, particle.color);
+                    rl.drawTriangle(p4, p3, p1, spark.alt_color);
+                }
+            }
+        }
+    }
+};
+
 const Gamestate = struct {
     ecs: entity.ECS,
     level: Level,
     camera: renderer.Camera,
     tracks: Tracks,
+    particles: Particles,
 
     allocator: std.mem.Allocator,
     const Self = @This();
@@ -108,6 +299,7 @@ const Gamestate = struct {
             .level = try .init(lvl_path, allocator),
             .camera = .init(RENDER_WIDTH, RENDER_HEIGHT),
             .tracks = try .init(allocator),
+            .particles = .init(allocator),
 
             .allocator = allocator,
         };
@@ -117,17 +309,20 @@ const Gamestate = struct {
         self.ecs.deinit();
         self.level.deinit(self.allocator);
         self.tracks.deinit();
+        self.particles.deinit();
     }
 
     pub fn update(self: *Self, deltatime: f32) void {
         self.ecs.update(deltatime, self.level);
         self.level.update_intermediate_texture(self.camera);
         self.tracks.update(&self.ecs);
+        self.particles.update(deltatime, self.ecs);
     }
 
     pub fn draw(self: Self) void {
         self.level.draw(self.camera);
         self.tracks.draw(self.camera);
+        self.particles.draw(self.camera);
         self.ecs.draw(self.camera);
     }
 };
