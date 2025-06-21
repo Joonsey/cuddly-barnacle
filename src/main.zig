@@ -193,11 +193,27 @@ const Particles = struct {
                     switch (drift.state) {
                         .boosting => {
                             self.particles.append(self.allocator, Particle{
-                                .position = pos,
+                                .position = pos.add(side.scale(2)),
                                 .velocity = dir.scale(1),
                                 .lifetime = 1,
                                 .color = .yellow,
                                 .kind = .{.Spark = .{ .scale = 5, .alt_color = .yellow, .force = 2 }},
+                                .rotation = transform.rotation,
+                            }) catch unreachable;
+                            self.particles.append(self.allocator, Particle{
+                                .position = pos.add(side),
+                                .velocity = dir.scale(1),
+                                .lifetime = 0.5,
+                                .color = .orange,
+                                .kind = .{.Spark = .{ .scale = 10, .alt_color = .orange, .force = 2 }},
+                                .rotation = transform.rotation,
+                            }) catch unreachable;
+                            self.particles.append(self.allocator, Particle{
+                                .position = transform.position,
+                                .velocity = dir.scale(1),
+                                .lifetime = 0.5,
+                                .color = .yellow,
+                                .kind = .{.Spark = .{ .scale = 8, .alt_color = .yellow, .force = 4 }},
                                 .rotation = transform.rotation,
                             }) catch unreachable;
                             if (self.particle_index % 4 == 0) {
