@@ -5,6 +5,7 @@ const renderer = @import("renderer.zig");
 pub const Prefab = enum {
     cube,
     tank,
+    itembox,
 };
 
 const Map = std.AutoHashMapUnmanaged(Prefab, entity.Entity);
@@ -21,6 +22,7 @@ fn reg(comptime pre: Prefab, allocator: std.mem.Allocator, e: entity.Entity) !vo
 pub fn init(allocator: std.mem.Allocator) !void {
     try reg(.cube, allocator, .{ .archetype = .Wall, .collision = .{ .x = 0, .y = 0, .width = 40, .height = 40 }, .transform = .{ .position = .{ .x = 0, .y = 0 } }, .renderable = .{ .Stacked = try .init("assets/cube.png") } });
     try reg(.tank, allocator, .{ .archetype = .Car, .collision = .{ .x = 0, .y = 0, .width = 18, .height = 18 }, .transform = .{ .position = .{ .x = 0, .y = 0 } }, .renderable = .{ .Stacked = try .init("assets/tank.png") }, .shadow = .{ .radius = 9 } });
+    try reg(.itembox, allocator, .{ .archetype = .ItemBox, .collision = .{ .x = 0, .y = 0, .width = 30, .height = 30 }, .transform = .{ .position = .{ .x = 0, .y = 0 } }, .renderable = .{ .Stacked = try .init("assets/itembox.png")}, .shadow = .{ .radius = 15 } });
 }
 
 pub fn deinit(allocator: std.mem.Allocator) void {

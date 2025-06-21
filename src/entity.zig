@@ -145,6 +145,11 @@ pub const Archetype = enum {
     Car,
     Obstacle,
     Wall,
+    ItemBox,
+};
+
+pub const Timer = struct {
+    timer: f32 = 1,
 };
 
 fn order_by_camera_position(camera: Camera, lhs: Entity, rhs: Entity) bool {
@@ -179,6 +184,7 @@ pub const Entity = struct {
     prefab: ?prefab.Prefab = null,
     race_context: ?RaceContext = null,
     drift: ?Drift = null,
+    timer: ?Timer = null,
 
     const Self = @This();
     pub fn update(self: *Self, deltatime: f32) ?Event {
@@ -198,6 +204,10 @@ pub const Entity = struct {
                 collision.x = transform.position.x - (collision.width / 2);
                 collision.y = transform.position.y - (collision.height / 2);
             }
+        }
+
+        if (self.timer) |*timer| {
+            timer.timer = @max(timer.timer - deltatime, 0);
         }
 
         return event;
@@ -266,8 +276,18 @@ pub const ECS = struct {
         for (self.events.items) |event| {
             switch (event) {
                 .Collision => |col| {
-                    _ = col;
-                    // std.log.err("COLLISION EVENT {?}", .{col});
+                    const a = &self.entities.items[col.a];
+                    const b = &self.entities.items[col.b];
+                    if (a.archetype == .ItemBox and b.archetype == .Car) {
+                        a.renderable = null;
+                        a.renderable = null;
+                        a.timer = .{ .timer = 1 };
+                    }
+                    if (b.archetype == .ItemBox and a.archetype == .Car) {
+                        b.collision = null;
+                        b.renderable = null;
+                        b.timer = .{ .timer = 1 };
+                    }
                 },
                 .Finish => |fin| {
                     std.log.err("{any}", .{fin});
@@ -375,6 +395,22 @@ pub const ECS = struct {
                         if (rl.checkCollisionCircles(cp.position, cp.radius, transform.position, 9)) {
                             race_context.checkpoint += 1;
                         }
+                    }
+                }
+            }
+
+            if (entity.archetype == .ItemBox) {
+                if (entity.transform) |*transform|{
+                    const abs_time_offset: f32 = @floatCast(rl.getTime() + @as(f64, @floatFromInt(i)));
+                    transform.height = 5 + 10 * @abs(@sin(abs_time_offset));
+                    transform.rotation = 0.25 * abs_time_offset + @as(f32, @floatFromInt(i));
+                }
+                if (entity.timer) |timer| {
+                    if (timer.timer <= 0) {
+                        const ref = prefab.get(.itembox);
+                        entity.renderable = ref.renderable;
+                        entity.collision = ref.collision;
+                        entity.timer = null;
                     }
                 }
             }
