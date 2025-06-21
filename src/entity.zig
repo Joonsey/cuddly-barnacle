@@ -236,7 +236,7 @@ pub const Entity = struct {
     }
 };
 
-const Event = union(enum) {
+pub const Event = union(enum) {
     Collision: struct {
         a: EntityId,
         b: EntityId,
@@ -256,10 +256,19 @@ const Event = union(enum) {
     },
 };
 
+const EventListenerFn = *const fn(*anyopaque, *ECS, Event) void;
+
+const Observer = struct {
+    callback: EventListenerFn,
+    context: *anyopaque,
+};
+
 pub const ECS = struct {
     entities: std.ArrayListUnmanaged(Entity),
     events: std.ArrayListUnmanaged(Event),
     next_id: EntityId = 0,
+
+    event_listeners: std.ArrayListUnmanaged(Observer),
 
     allocator: std.mem.Allocator,
 
@@ -269,11 +278,21 @@ pub const ECS = struct {
             .entities = .{},
             .events = .{},
             .allocator = allocator,
+            .event_listeners = .{},
         };
+    }
+
+    pub fn register_observer(self: *Self, observer: Observer) void {
+        self.event_listeners.append(self.allocator, observer) catch unreachable;
+    }
+
+    fn notify(self: *Self, event: Event) void {
+        for (self.event_listeners.items) |observer| observer.callback(observer.context, self, event);
     }
 
     fn handle_events(self: *Self) void {
         for (self.events.items) |event| {
+            self.notify(event);
             switch (event) {
                 .Collision => |col| {
                     const a = &self.entities.items[col.a];
@@ -450,5 +469,6 @@ pub const ECS = struct {
     pub fn deinit(self: *Self) void {
         self.events.deinit(self.allocator);
         self.entities.deinit(self.allocator);
+        self.event_listeners.deinit(self.allocator);
     }
 };

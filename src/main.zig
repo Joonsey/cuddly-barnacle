@@ -131,6 +131,49 @@ const Particles = struct {
         self.particles.clearAndFree(self.allocator);
     }
 
+    pub fn on_event(s: *anyopaque, ecs: *entity.ECS, event: entity.Event) void {
+        const self: *Self = @alignCast(@ptrCast(s));
+        switch (event) {
+            .Collision => |col| {
+                const a = ecs.get(col.a);
+                const b = ecs.get(col.b);
+                if (a.archetype == .ItemBox and b.archetype == .Car or b.archetype == .ItemBox and a.archetype == .Car) {
+                    const pos = a.transform.?.position;
+                    const num_angles = 16;
+                    for (0..num_angles) |i| {
+                        const f_i: f32 = @floatFromInt(i);
+                        const f_num_angles: f32 = @floatFromInt(num_angles);
+                        const angle = (f_i / f_num_angles) * std.math.pi * 2;
+
+                        const x: f32 = @cos(angle);
+                        const y: f32 = @sin(angle);
+
+                        // IDK how i made this but it looks kinda cool???
+                        const dir: rl.Vector2 = .{.x = x, .y = y};
+                        self.particles.append(self.allocator, Particle{
+                            .position = pos,
+                            .velocity = dir.scale(20),
+                            .lifetime = 1,
+                            .color = .violet,
+                            .kind = .{.Spark = .{ .scale = 5, .alt_color = .violet, .force = 7 }},
+                            .rotation = -angle,
+                        }) catch unreachable;
+
+                        self.particles.append(self.allocator, Particle{
+                            .position = pos,
+                            .velocity = dir.scale(10),
+                            .lifetime = 1.4,
+                            .color = .dark_purple,
+                            .kind = .{.Spark = .{ .scale = 3, .alt_color = .dark_gray, .force = 4 }},
+                            .rotation = -angle,
+                        }) catch unreachable;
+                    }
+                }
+            },
+            else => {},
+        }
+    }
+
     pub fn update(self: *Self, deltatime: f32, ecs: entity.ECS) void {
         self.passed_frames += 1;
         for (self.particles.items) |*particle| {
@@ -472,6 +515,8 @@ pub fn main() !void {
 
     var state: Gamestate = try .init(allocator, Levels.level_one);
     defer state.deinit();
+
+    state.ecs.register_observer(.{.callback = &Particles.on_event, .context = &state.particles});
 
     state.level.load_ecs(&state.ecs);
 
