@@ -194,21 +194,19 @@ const Particles = struct {
                         .boosting => {
                             self.particles.append(self.allocator, Particle{
                                 .position = pos,
-                                .velocity = dir,
-                                .lifetime = 10,
-                                .color = .blue,
-                                .kind = .{.Rectangle = .{ .x = 10, .y = 10 }},
+                                .velocity = dir.scale(1),
+                                .lifetime = 1,
+                                .color = .yellow,
+                                .kind = .{.Spark = .{ .scale = 5, .alt_color = .yellow, .force = 2 }},
                                 .rotation = transform.rotation,
                             }) catch unreachable;
-                        },
-                        .charging => {
                             if (self.particle_index % 4 == 0) {
                                 self.particles.append(self.allocator, Particle{
                                     .position = pos,
                                     .velocity = dir.scale(1.2),
                                     .lifetime = 1,
-                                    .color = .white,
-                                    .kind = .{.Spark = .{ .scale = 5, .alt_color = .white, .force = 4 }},
+                                    .color = .red,
+                                    .kind = .{.Spark = .{ .scale = 5, .alt_color = .red, .force = 4 }},
                                     .rotation = transform.rotation,
                                 }) catch unreachable;
                             } else if (self.particle_index % 3 == 0) {
@@ -216,19 +214,135 @@ const Particles = struct {
                                     .position = pos,
                                     .velocity = dir.scale(0.8),
                                     .lifetime = 0.8,
-                                    .color = .gray,
-                                    .kind = .{.Spark = .{ .scale = 5, .alt_color = .gray, .force = 2 }},
+                                    .color = .orange,
+                                    .kind = .{.Spark = .{ .scale = 5, .alt_color = .orange, .force = 2 }},
                                     .rotation = transform.rotation,
                                 }) catch unreachable;
-                            } else if (self.particle_index % 2 == 0) {
-                                self.particles.append(self.allocator, Particle{
-                                    .position = pos,
-                                    .velocity = dir.scale(1),
-                                    .lifetime = 1,
-                                    .color = .light_gray,
-                                    .kind = .{.Spark = .{ .scale = 5, .alt_color = .light_gray, .force = 2 }},
-                                    .rotation = transform.rotation,
-                                }) catch unreachable;
+                            }
+                        },
+                        .charging => |time_held| {
+                            const predicted_stage: entity.DriftState.BoostStage = .get_stage(time_held);
+                            switch (predicted_stage) {
+                                .none => {
+                                    if (self.particle_index % 4 == 0) {
+                                        self.particles.append(self.allocator, Particle{
+                                            .position = pos,
+                                            .velocity = dir.scale(1.2),
+                                            .lifetime = 1,
+                                            .color = .white,
+                                            .kind = .{.Spark = .{ .scale = 5, .alt_color = .white, .force = 4 }},
+                                            .rotation = transform.rotation,
+                                        }) catch unreachable;
+                                    } else if (self.particle_index % 3 == 0) {
+                                        self.particles.append(self.allocator, Particle{
+                                            .position = pos,
+                                            .velocity = dir.scale(0.8),
+                                            .lifetime = 0.8,
+                                            .color = .gray,
+                                            .kind = .{.Spark = .{ .scale = 5, .alt_color = .gray, .force = 2 }},
+                                            .rotation = transform.rotation,
+                                        }) catch unreachable;
+                                    } else if (self.particle_index % 2 == 0) {
+                                        self.particles.append(self.allocator, Particle{
+                                            .position = pos,
+                                            .velocity = dir.scale(1),
+                                            .lifetime = 1,
+                                            .color = .light_gray,
+                                            .kind = .{.Spark = .{ .scale = 5, .alt_color = .light_gray, .force = 2 }},
+                                            .rotation = transform.rotation,
+                                        }) catch unreachable;
+                                    }
+                                },
+                                .Mini => {
+                                    if (self.particle_index % 4 == 0) {
+                                        self.particles.append(self.allocator, Particle{
+                                            .position = pos,
+                                            .velocity = dir.scale(1.2),
+                                            .lifetime = 1,
+                                            .color = .white,
+                                            .kind = .{.Spark = .{ .scale = 5, .alt_color = .white, .force = 4 }},
+                                            .rotation = transform.rotation,
+                                        }) catch unreachable;
+                                    } else if (self.particle_index % 3 == 0) {
+                                        self.particles.append(self.allocator, Particle{
+                                            .position = pos,
+                                            .velocity = dir.scale(0.8),
+                                            .lifetime = 0.8,
+                                            .color = .gray,
+                                            .kind = .{.Spark = .{ .scale = 5, .alt_color = .gray, .force = 2 }},
+                                            .rotation = transform.rotation,
+                                        }) catch unreachable;
+                                    } else if (self.particle_index % 2 == 0) {
+                                        self.particles.append(self.allocator, Particle{
+                                            .position = pos,
+                                            .velocity = dir.scale(1),
+                                            .lifetime = 1,
+                                            .color = .light_gray,
+                                            .kind = .{.Spark = .{ .scale = 5, .alt_color = .light_gray, .force = 2 }},
+                                            .rotation = transform.rotation,
+                                        }) catch unreachable;
+                                    }
+                                },
+                                .Medium => {
+                                    if (self.particle_index % 4 == 0) {
+                                        self.particles.append(self.allocator, Particle{
+                                            .position = pos,
+                                            .velocity = dir.scale(1.2),
+                                            .lifetime = 1,
+                                            .color = .white,
+                                            .kind = .{.Spark = .{ .scale = 5, .alt_color = .white, .force = 4 }},
+                                            .rotation = transform.rotation,
+                                        }) catch unreachable;
+                                    } else if (self.particle_index % 3 == 0) {
+                                        self.particles.append(self.allocator, Particle{
+                                            .position = pos,
+                                            .velocity = dir.scale(0.8),
+                                            .lifetime = 0.8,
+                                            .color = .blue,
+                                            .kind = .{.Spark = .{ .scale = 5, .alt_color = .blue, .force = 2 }},
+                                            .rotation = transform.rotation,
+                                        }) catch unreachable;
+                                    } else if (self.particle_index % 2 == 0) {
+                                        self.particles.append(self.allocator, Particle{
+                                            .position = pos,
+                                            .velocity = dir.scale(1),
+                                            .lifetime = 1,
+                                            .color = .sky_blue,
+                                            .kind = .{.Spark = .{ .scale = 5, .alt_color = .sky_blue, .force = 2 }},
+                                            .rotation = transform.rotation,
+                                        }) catch unreachable;
+                                    }
+                                },
+                                .Turbo => {
+                                    if (self.particle_index % 4 == 0) {
+                                        self.particles.append(self.allocator, Particle{
+                                            .position = pos,
+                                            .velocity = dir.scale(1.2),
+                                            .lifetime = 1,
+                                            .color = .dark_purple,
+                                            .kind = .{.Spark = .{ .scale = 5, .alt_color = .dark_purple, .force = 4 }},
+                                            .rotation = transform.rotation,
+                                        }) catch unreachable;
+                                    } else if (self.particle_index % 3 == 0) {
+                                        self.particles.append(self.allocator, Particle{
+                                            .position = pos,
+                                            .velocity = dir.scale(0.8),
+                                            .lifetime = 0.8,
+                                            .color = .purple,
+                                            .kind = .{.Spark = .{ .scale = 5, .alt_color = .purple, .force = 2 }},
+                                            .rotation = transform.rotation,
+                                        }) catch unreachable;
+                                    } else if (self.particle_index % 2 == 0) {
+                                        self.particles.append(self.allocator, Particle{
+                                            .position = pos,
+                                            .velocity = dir.scale(1),
+                                            .lifetime = 1,
+                                            .color = .violet,
+                                            .kind = .{.Spark = .{ .scale = 5, .alt_color = .violet, .force = 2 }},
+                                            .rotation = transform.rotation,
+                                        }) catch unreachable;
+                                    }
+                                },
                             }
                         },
                         .none => {},

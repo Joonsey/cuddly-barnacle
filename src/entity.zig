@@ -40,31 +40,40 @@ pub const Controller = struct {
 
         const base_rotation_speed = kinetic.velocity.length() / max_speed * deltatime;
 
-        if (rl.isKeyPressed(.h) and drift.state == .none and transform.height == 0) {
-            drift.state = .charging;
-            transform.height += 5;
+        switch (drift.state) {
+            .none => {
+                if (rl.isKeyPressed(.h) and transform.height == 0) {
+                    drift.state = .{ .charging = 0 };
+                    transform.height += 5;
 
-            if (rl.isKeyDown(.a)) {
-                drift.direction = -1;
-            } else if (rl.isKeyDown(.d)) {
-                drift.direction = 1;
-            } else {
-                drift.direction = 0;
-            }
-        }
+                    if (rl.isKeyDown(.a)) {
+                        drift.direction = -1;
+                    } else if (rl.isKeyDown(.d)) {
+                        drift.direction = 1;
+                    } else {
+                        drift.direction = 0;
+                    }
+                }
+            },
+            .charging => |charge_time| {
+                if (drift.direction == 0 and transform.height == 0) drift.state = .none;
 
-        if (drift.state == .charging) {
-            if (drift.direction == 0 and transform.height == 0) drift.state = .none;
 
-            if (rl.isKeyDown(.h)) {
-                transform.rotation += base_rotation_speed * 0.6 * drift.direction;
-            }
+                if (rl.isKeyDown(.h)) {
+                    transform.rotation += base_rotation_speed * 0.6 * drift.direction;
+                }
 
-            if (rl.isKeyReleased(.h)) {
-                drift.state = .boosting;
-                drift.direction = 0;
-                drift.time_held = 0;
-            }
+                if (rl.isKeyReleased(.h)) {
+                    const stage = DriftState.BoostStage.get_stage(charge_time);
+                    drift.state = .{ .boosting = stage };
+                    drift.boost_time = DriftState.BoostStage.get_boost_time(stage);
+                    drift.direction = 0;
+                }
+            },
+            .boosting => {
+                kinetic.velocity.x += accel * forward.x;
+                kinetic.velocity.y += accel * forward.y;
+            },
         }
         const rotation_speed = if (drift.state != .charging) base_rotation_speed else base_rotation_speed * 0.2;
 
@@ -89,15 +98,37 @@ pub const RaceContext = struct {
     checkpoint: usize = 0,
 };
 
-pub const DriftState = enum {
-    none,
-    charging,
-    boosting,
+pub const DriftState = union(enum) {
+    pub const BoostStage = enum {
+        none,
+        Mini,
+        Medium,
+        Turbo,
+
+        pub fn get_stage(time_held: f32) BoostStage {
+            if (time_held > 3) return .Turbo;
+            if (time_held > 1.5) return .Medium;
+            if (time_held > 0.5) return .Mini;
+            return .none;
+        }
+
+        pub fn get_boost_time(stage: BoostStage) f32 {
+            return switch (stage) {
+                .none => 0,
+                .Mini => 0.3,
+                .Medium => 0.5,
+                .Turbo => 1.2,
+            };
+        }
+    };
+
+    none: void,
+    charging: f32,
+    boosting: BoostStage,
 };
 
 pub const Drift = struct {
     state: DriftState = .none,
-    time_held: f32 = 0,
     boost_time: f32 = 0,
     direction: f32 = 0,
 };
@@ -263,12 +294,13 @@ pub const ECS = struct {
             if (entity.drift) |*drift| {
                 switch (drift.state) {
                     .none => {},
-                    .charging => {
-                        drift.time_held += deltatime;
+                    .charging => |*charge_time|{
+                        charge_time.* += deltatime;
                     },
-                    .boosting => {
-                        self.events.append(self.allocator, .{ .Boosting = .{ .entity = @intCast(i) }}) catch unreachable;
-                        drift.state = .none;
+                    .boosting => |_| {
+                        drift.boost_time -= deltatime;
+                        // self.events.append(self.allocator, .{ .Boosting = .{ .entity = @intCast(i) }}) catch unreachable;
+                        if (drift.boost_time < 0) drift.state = .none;
                     },
                 }
             }
