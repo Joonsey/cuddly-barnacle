@@ -3,7 +3,6 @@ const rl = @import("raylib");
 
 const entity = @import("entity.zig");
 
-
 pub const Camera = struct {
     position: rl.Vector2,
     screen_offset: rl.Vector2,
@@ -51,7 +50,6 @@ pub const Camera = struct {
 
         return self.position.add(rotated);
     }
-
 
     pub fn is_out_of_bounds(self: Self, abs_position: rl.Vector2) bool {
         const relative_pos = self.get_relative_position(abs_position);
@@ -102,13 +100,12 @@ pub const Flat = struct {
         const rotation = transform.rotation;
         const relative_pos = camera.get_relative_position(position);
 
-
         const texture = self.texture;
         const f_width: f32 = @floatFromInt(texture.width);
         const f_height: f32 = @floatFromInt(texture.height);
         texture.drawPro(
-            .{ .x = 0, .y = 0, .width = f_width, .height = f_height},
-            .{ .x = relative_pos.x, .y = relative_pos.y - transform.height, .width = f_width, .height = f_height},
+            .{ .x = 0, .y = 0, .width = f_width, .height = f_height },
+            .{ .x = relative_pos.x, .y = relative_pos.y - transform.height, .width = f_width, .height = f_height },
             .{ .x = f_width / 2, .y = f_height / 2 },
             std.math.radiansToDegrees(rotation - camera.rotation),
             self.color,
@@ -123,10 +120,7 @@ pub const Stacked = struct {
 
     const Self = @This();
     pub fn init(path: [:0]const u8) !Self {
-        return .{
-            .texture = try rl.loadTexture(path),
-            .path = path
-        };
+        return .{ .texture = try rl.loadTexture(path), .path = path };
     }
 
     pub fn copy(self: Self) Self {
@@ -144,19 +138,18 @@ pub const Stacked = struct {
 
         const texture = self.texture;
         const width = texture.width;
-        const rows: usize = @intCast(@divTrunc(texture.height , width));
+        const rows: usize = @intCast(@divTrunc(texture.height, width));
         const f_width: f32 = @floatFromInt(width);
         for (0..rows) |i| {
             const f_inverse_i: f32 = @floatFromInt(rows - (i + 1));
             const f_i: f32 = @floatFromInt(i);
             texture.drawPro(
-                .{ .x = 0, .y = f_inverse_i * f_width, .width = f_width, .height = f_width},
+                .{ .x = 0, .y = f_inverse_i * f_width, .width = f_width, .height = f_width },
                 .{ .x = relative_pos.x, .y = relative_pos.y - f_i - transform.height, .width = f_width, .height = f_width },
                 .{ .x = f_width / 2, .y = f_width / 2 },
                 std.math.radiansToDegrees(rotation - camera.rotation),
                 self.color,
-                );
+            );
         }
-
     }
 };

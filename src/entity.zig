@@ -58,7 +58,6 @@ pub const Controller = struct {
             .charging => |charge_time| {
                 if (drift.direction == 0 and transform.height == 0) drift.state = .none;
 
-
                 if (rl.isKeyDown(.h)) {
                     transform.rotation += base_rotation_speed * 0.6 * drift.direction;
                 }
@@ -191,8 +190,8 @@ pub const Entity = struct {
         const event: ?Event = null;
         if (self.controller) |controller| {
             if (self.kinetic) |*kinetic| {
-                if (self.drift) |*drift|{
-                    if (self.transform) |*transform|{
+                if (self.drift) |*drift| {
+                    if (self.transform) |*transform| {
                         controller.handle_input(kinetic, drift, transform, deltatime);
                     }
                 }
@@ -244,7 +243,6 @@ pub const Event = union(enum) {
     Finish: struct {
         placement: usize,
         entity: EntityId,
-
     },
     CompleteLap: struct {
         placement: usize,
@@ -256,7 +254,7 @@ pub const Event = union(enum) {
     },
 };
 
-const EventListenerFn = *const fn(*anyopaque, *ECS, Event) void;
+const EventListenerFn = *const fn (*anyopaque, *ECS, Event) void;
 
 const Observer = struct {
     callback: EventListenerFn,
@@ -316,7 +314,7 @@ pub const ECS = struct {
                 },
                 .Boosting => |boost| {
                     _ = boost;
-                }
+                },
             }
         }
 
@@ -333,7 +331,7 @@ pub const ECS = struct {
             if (entity.drift) |*drift| {
                 switch (drift.state) {
                     .none => {},
-                    .charging => |*charge_time|{
+                    .charging => |*charge_time| {
                         charge_time.* += deltatime;
                     },
                     .boosting => |_| {
@@ -404,9 +402,9 @@ pub const ECS = struct {
                             race_context.lap += 1;
 
                             if (race_context.lap >= 3) {
-                                self.events.append(self.allocator, .{ .Finish = .{ .placement = 0, .entity = @intCast(i) }}) catch unreachable;
+                                self.events.append(self.allocator, .{ .Finish = .{ .placement = 0, .entity = @intCast(i) } }) catch unreachable;
                             } else {
-                                self.events.append(self.allocator, .{ .CompleteLap = .{ .placement = 0, .entity = @intCast(i) }}) catch unreachable;
+                                self.events.append(self.allocator, .{ .CompleteLap = .{ .placement = 0, .entity = @intCast(i) } }) catch unreachable;
                             }
                         }
                     } else {
@@ -419,7 +417,7 @@ pub const ECS = struct {
             }
 
             if (entity.archetype == .ItemBox) {
-                if (entity.transform) |*transform|{
+                if (entity.transform) |*transform| {
                     const abs_time_offset: f32 = @floatCast(rl.getTime() + @as(f64, @floatFromInt(i)));
                     transform.height = 5 + 10 * @abs(@sin(abs_time_offset));
                     transform.rotation = 0.25 * abs_time_offset + @as(f32, @floatFromInt(i));

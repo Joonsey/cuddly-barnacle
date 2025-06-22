@@ -44,17 +44,17 @@ pub const Tracks = struct {
                                 self.indexes.put(self.allocator, @intCast(i), 0) catch unreachable;
                                 break :blk 0;
                             };
-                            const query: Query = .{.index = index, .entity = @intCast(i)};
+                            const query: Query = .{ .index = index, .entity = @intCast(i) };
                             var tracks: std.ArrayListUnmanaged(Track) = self.tracks.get(query) orelse .{};
                             tracks.append(self.allocator, .{ .position = transform.position, .rotation = transform.rotation }) catch unreachable;
                             self.tracks.put(self.allocator, query, tracks) catch unreachable;
                         },
                         else => {
                             if (self.indexes.getPtr(@intCast(i))) |index| {
-                                const query: Query = .{.index = index.*, .entity = @intCast(i)};
+                                const query: Query = .{ .index = index.*, .entity = @intCast(i) };
                                 if (self.tracks.get(query)) |_| index.* += 1;
                             }
-                        }
+                        },
                     }
                 }
             }
@@ -72,10 +72,8 @@ pub const Tracks = struct {
                 const forward = rl.Vector2{ .x = @cos(track.rotation), .y = @sin(track.rotation) };
                 const perp = rl.Vector2{ .x = -forward.y, .y = forward.x };
 
-
                 left.append(self.allocator, camera.get_relative_position(track.position.add(perp.scale(car_radius)))) catch unreachable;
                 right.append(self.allocator, camera.get_relative_position(track.position.subtract(perp.scale(car_radius)))) catch unreachable;
-
             }
             rl.drawLineStrip(left.items, .black);
             rl.drawLineStrip(right.items, .black);

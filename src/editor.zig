@@ -16,7 +16,6 @@ var WINDOW_HEIGHT: f32 = 900;
 const RENDER_WIDTH: f32 = 720;
 const RENDER_HEIGHT: f32 = 480;
 
-
 fn handle_input(camera: *renderer.Camera) void {
     const forward: rl.Vector2 = .{
         .x = @cos(camera.rotation),
@@ -70,7 +69,7 @@ const Selected = union(enum) {
     fn draw_text(self: Self) void {
         const text = switch (self) {
             .Entity => "Entity",
-            .Checkpoints => |cp| rl.textFormat("Checkpoints: %d/%d", .{cp.current, cp.points.items.len}),
+            .Checkpoints => |cp| rl.textFormat("Checkpoints: %d/%d", .{ cp.current, cp.points.items.len }),
             .Finish => "Finish",
             .None => "",
         };
@@ -97,7 +96,7 @@ const Selected = union(enum) {
                     const relative_pos = camera.get_relative_position(current.position);
                     rl.drawCircleV(relative_pos, current.radius, .{ .r = 0, .b = 0, .g = 255, .a = 100 });
                 }
-        },
+            },
             .Finish => |f| {
                 const left = camera.get_relative_position(f.left);
                 const right = camera.get_relative_position(f.right);
@@ -115,7 +114,7 @@ const Selected = union(enum) {
                     color.r = @intFromFloat(f_i / 12 * 255);
                     rl.drawCircleV(rel_spawn, 9, color);
                 }
-        },
+            },
             .None => {},
         }
     }
@@ -160,7 +159,6 @@ const Selected = union(enum) {
 
                     current_cp.radius += rl.getMouseWheelMove() * 5;
                     state.radius = current_cp.radius;
-
                 } else {
                     const new_cp = Checkpoint{ .position = abs_position, .radius = state.radius };
 
@@ -178,7 +176,7 @@ const Selected = union(enum) {
                 if (rl.isKeyPressed(.z) and !rl.isKeyDown(.left_control)) {
                     c.current = inc(c.current, -1, c.points.items.len);
                 }
-        },
+            },
             .Finish => |*f| {
                 if (rl.isMouseButtonPressed(.left)) {
                     f.left = abs_position;
@@ -187,7 +185,7 @@ const Selected = union(enum) {
                 }
 
                 state.level.finish = f.*;
-        },
+            },
             .None => {},
         }
     }
@@ -261,13 +259,12 @@ pub fn main() !void {
         }
 
         if (rl.isKeyPressed(.c)) {
-            selected = .{ .Checkpoints = .{ .points = checkpoints, .current = checkpoints.items.len} };
+            selected = .{ .Checkpoints = .{ .points = checkpoints, .current = checkpoints.items.len } };
         }
 
         if (rl.isKeyPressed(.f)) {
             selected = .{ .Finish = state.level.finish };
         }
-
 
         state.ecs.update(deltatime, state.level);
         handle_input(&camera);

@@ -37,7 +37,7 @@ pub const Particles = struct {
         };
     }
 
-    pub fn deinit(self:* Self) void {
+    pub fn deinit(self: *Self) void {
         self.particles.clearAndFree(self.allocator);
     }
 
@@ -59,13 +59,13 @@ pub const Particles = struct {
                         const y: f32 = @sin(angle);
 
                         // IDK how i made this but it looks kinda cool???
-                        const dir: rl.Vector2 = .{.x = x, .y = y};
+                        const dir: rl.Vector2 = .{ .x = x, .y = y };
                         self.particles.append(self.allocator, Particle{
                             .position = pos,
                             .velocity = dir.scale(20),
                             .lifetime = 1,
                             .color = .violet,
-                            .kind = .{.Spark = .{ .scale = 5, .alt_color = .violet, .force = 7 }},
+                            .kind = .{ .Spark = .{ .scale = 5, .alt_color = .violet, .force = 7 } },
                             .rotation = -angle,
                         }) catch unreachable;
 
@@ -74,7 +74,7 @@ pub const Particles = struct {
                             .velocity = dir.scale(10),
                             .lifetime = 1.4,
                             .color = .dark_purple,
-                            .kind = .{.Spark = .{ .scale = 3, .alt_color = .dark_gray, .force = 4 }},
+                            .kind = .{ .Spark = .{ .scale = 3, .alt_color = .dark_gray, .force = 4 } },
                             .rotation = -angle,
                         }) catch unreachable;
                     }
@@ -128,7 +128,7 @@ pub const Particles = struct {
                             .velocity = dir.scale(0.7),
                             .lifetime = 1,
                             .color = .brown,
-                            .kind = .{.Rectangle = .{ .x = 2, .y = 2 }},
+                            .kind = .{ .Rectangle = .{ .x = 2, .y = 2 } },
                             .rotation = transform.rotation,
                         }) catch unreachable;
                     } else {
@@ -137,7 +137,7 @@ pub const Particles = struct {
                             .velocity = dir.scale(0.7),
                             .lifetime = 1,
                             .color = .dark_brown,
-                            .kind = .{.Rectangle = .{ .x = 2, .y = 2 }},
+                            .kind = .{ .Rectangle = .{ .x = 2, .y = 2 } },
                             .rotation = transform.rotation,
                         }) catch unreachable;
                     }
@@ -150,7 +150,7 @@ pub const Particles = struct {
                                 .velocity = dir.scale(1),
                                 .lifetime = 1,
                                 .color = .yellow,
-                                .kind = .{.Spark = .{ .scale = 10, .alt_color = .yellow, .force = 2 }},
+                                .kind = .{ .Spark = .{ .scale = 10, .alt_color = .yellow, .force = 2 } },
                                 .rotation = transform.rotation,
                             }) catch unreachable;
                             self.particles.append(self.allocator, Particle{
@@ -158,7 +158,7 @@ pub const Particles = struct {
                                 .velocity = dir.scale(1),
                                 .lifetime = 0.5,
                                 .color = .orange,
-                                .kind = .{.Spark = .{ .scale = 10, .alt_color = .orange, .force = 2 }},
+                                .kind = .{ .Spark = .{ .scale = 10, .alt_color = .orange, .force = 2 } },
                                 .rotation = transform.rotation,
                             }) catch unreachable;
                             self.particles.append(self.allocator, Particle{
@@ -166,7 +166,7 @@ pub const Particles = struct {
                                 .velocity = dir.scale(1),
                                 .lifetime = 0.5,
                                 .color = .yellow,
-                                .kind = .{.Spark = .{ .scale = 8, .alt_color = .yellow, .force = 4 }},
+                                .kind = .{ .Spark = .{ .scale = 8, .alt_color = .yellow, .force = 4 } },
                                 .rotation = transform.rotation,
                             }) catch unreachable;
                             if (self.particle_index % 4 == 0) {
@@ -175,7 +175,7 @@ pub const Particles = struct {
                                     .velocity = dir.scale(1.2),
                                     .lifetime = 1,
                                     .color = .red,
-                                    .kind = .{.Spark = .{ .scale = 5, .alt_color = .red, .force = 4 }},
+                                    .kind = .{ .Spark = .{ .scale = 5, .alt_color = .red, .force = 4 } },
                                     .rotation = transform.rotation,
                                 }) catch unreachable;
                             } else if (self.particle_index % 3 == 0) {
@@ -184,7 +184,7 @@ pub const Particles = struct {
                                     .velocity = dir.scale(0.8),
                                     .lifetime = 0.8,
                                     .color = .orange,
-                                    .kind = .{.Spark = .{ .scale = 5, .alt_color = .orange, .force = 2 }},
+                                    .kind = .{ .Spark = .{ .scale = 5, .alt_color = .orange, .force = 2 } },
                                     .rotation = transform.rotation,
                                 }) catch unreachable;
                             }
@@ -200,7 +200,7 @@ pub const Particles = struct {
                                             .velocity = dir.scale(1.2),
                                             .lifetime = 1,
                                             .color = .white,
-                                            .kind = .{.Spark = .{ .scale = default_scale, .alt_color = .white, .force = 4 }},
+                                            .kind = .{ .Spark = .{ .scale = default_scale, .alt_color = .white, .force = 4 } },
                                             .rotation = transform.rotation,
                                         }) catch unreachable;
                                     } else if (self.particle_index % 3 == 0) {
@@ -209,7 +209,7 @@ pub const Particles = struct {
                                             .velocity = dir.scale(0.8),
                                             .lifetime = 0.8,
                                             .color = .gray,
-                                            .kind = .{.Spark = .{ .scale = default_scale, .alt_color = .gray, .force = 2 }},
+                                            .kind = .{ .Spark = .{ .scale = default_scale, .alt_color = .gray, .force = 2 } },
                                             .rotation = transform.rotation,
                                         }) catch unreachable;
                                     } else if (self.particle_index % 2 == 0) {
@@ -218,7 +218,7 @@ pub const Particles = struct {
                                             .velocity = dir.scale(1),
                                             .lifetime = 1,
                                             .color = .light_gray,
-                                            .kind = .{.Spark = .{ .scale = default_scale, .alt_color = .light_gray, .force = 2 }},
+                                            .kind = .{ .Spark = .{ .scale = default_scale, .alt_color = .light_gray, .force = 2 } },
                                             .rotation = transform.rotation,
                                         }) catch unreachable;
                                     }
@@ -230,7 +230,7 @@ pub const Particles = struct {
                                             .velocity = dir.scale(1.2),
                                             .lifetime = 1,
                                             .color = .white,
-                                            .kind = .{.Spark = .{ .scale = default_scale, .alt_color = .white, .force = 4 }},
+                                            .kind = .{ .Spark = .{ .scale = default_scale, .alt_color = .white, .force = 4 } },
                                             .rotation = transform.rotation,
                                         }) catch unreachable;
                                     } else if (self.particle_index % 3 == 0) {
@@ -239,7 +239,7 @@ pub const Particles = struct {
                                             .velocity = dir.scale(0.8),
                                             .lifetime = 0.8,
                                             .color = .gray,
-                                            .kind = .{.Spark = .{ .scale = default_scale, .alt_color = .gray, .force = 2 }},
+                                            .kind = .{ .Spark = .{ .scale = default_scale, .alt_color = .gray, .force = 2 } },
                                             .rotation = transform.rotation,
                                         }) catch unreachable;
                                     } else if (self.particle_index % 2 == 0) {
@@ -248,7 +248,7 @@ pub const Particles = struct {
                                             .velocity = dir.scale(1),
                                             .lifetime = 1,
                                             .color = .light_gray,
-                                            .kind = .{.Spark = .{ .scale = default_scale, .alt_color = .light_gray, .force = 2 }},
+                                            .kind = .{ .Spark = .{ .scale = default_scale, .alt_color = .light_gray, .force = 2 } },
                                             .rotation = transform.rotation,
                                         }) catch unreachable;
                                     }
@@ -260,7 +260,7 @@ pub const Particles = struct {
                                             .velocity = dir.scale(1.2),
                                             .lifetime = 1,
                                             .color = .white,
-                                            .kind = .{.Spark = .{ .scale = default_scale, .alt_color = .white, .force = 4 }},
+                                            .kind = .{ .Spark = .{ .scale = default_scale, .alt_color = .white, .force = 4 } },
                                             .rotation = transform.rotation,
                                         }) catch unreachable;
                                     } else if (self.particle_index % 3 == 0) {
@@ -269,7 +269,7 @@ pub const Particles = struct {
                                             .velocity = dir.scale(0.8),
                                             .lifetime = 0.8,
                                             .color = .blue,
-                                            .kind = .{.Spark = .{ .scale = default_scale, .alt_color = .blue, .force = 2 }},
+                                            .kind = .{ .Spark = .{ .scale = default_scale, .alt_color = .blue, .force = 2 } },
                                             .rotation = transform.rotation,
                                         }) catch unreachable;
                                     } else if (self.particle_index % 2 == 0) {
@@ -278,7 +278,7 @@ pub const Particles = struct {
                                             .velocity = dir.scale(1),
                                             .lifetime = 1,
                                             .color = .sky_blue,
-                                            .kind = .{.Spark = .{ .scale = default_scale, .alt_color = .sky_blue, .force = 2 }},
+                                            .kind = .{ .Spark = .{ .scale = default_scale, .alt_color = .sky_blue, .force = 2 } },
                                             .rotation = transform.rotation,
                                         }) catch unreachable;
                                     }
@@ -290,7 +290,7 @@ pub const Particles = struct {
                                             .velocity = dir.scale(1.2),
                                             .lifetime = 1,
                                             .color = .dark_purple,
-                                            .kind = .{.Spark = .{ .scale = default_scale, .alt_color = .dark_purple, .force = 4 }},
+                                            .kind = .{ .Spark = .{ .scale = default_scale, .alt_color = .dark_purple, .force = 4 } },
                                             .rotation = transform.rotation,
                                         }) catch unreachable;
                                     } else if (self.particle_index % 3 == 0) {
@@ -299,7 +299,7 @@ pub const Particles = struct {
                                             .velocity = dir.scale(0.8),
                                             .lifetime = 0.8,
                                             .color = .purple,
-                                            .kind = .{.Spark = .{ .scale = default_scale, .alt_color = .purple, .force = 2 }},
+                                            .kind = .{ .Spark = .{ .scale = default_scale, .alt_color = .purple, .force = 2 } },
                                             .rotation = transform.rotation,
                                         }) catch unreachable;
                                     } else if (self.particle_index % 2 == 0) {
@@ -308,7 +308,7 @@ pub const Particles = struct {
                                             .velocity = dir.scale(1),
                                             .lifetime = 1,
                                             .color = .violet,
-                                            .kind = .{.Spark = .{ .scale = default_scale, .alt_color = .violet, .force = 2 }},
+                                            .kind = .{ .Spark = .{ .scale = default_scale, .alt_color = .violet, .force = 2 } },
                                             .rotation = transform.rotation,
                                         }) catch unreachable;
                                     }
@@ -362,9 +362,8 @@ pub const Particles = struct {
 
                     rl.drawTriangle(p3, p2, p1, particle.color);
                     rl.drawTriangle(p4, p3, p1, spark.alt_color);
-                }
+                },
             }
         }
     }
 };
-

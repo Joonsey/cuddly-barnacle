@@ -15,8 +15,6 @@ var WINDOW_HEIGHT: i32 = 900;
 const RENDER_WIDTH: i32 = 720;
 const RENDER_HEIGHT: i32 = 480;
 
-
-
 const Items = enum(u8) {
     Boost,
 };
@@ -159,15 +157,15 @@ pub fn main() !void {
     var state: Gamestate = try .init(allocator, Levels.level_one);
     defer state.deinit();
 
-    state.ecs.register_observer(.{.callback = &Particles.on_event, .context = &state.particles});
-    state.ecs.register_observer(.{.callback = &inventory.on_event, .context = &state.inventory});
+    state.ecs.register_observer(.{ .callback = &Particles.on_event, .context = &state.particles });
+    state.ecs.register_observer(.{ .callback = &inventory.on_event, .context = &state.inventory });
 
     state.level.load_ecs(&state.ecs);
 
     var tank = prefab.get(.tank);
     tank.transform.?.position = state.level.finish.get_spawn(0);
     tank.transform.?.rotation = state.level.finish.get_direction();
-    tank.kinetic = .{ .velocity = .{ .x = 0, .y = 0 }};
+    tank.kinetic = .{ .velocity = .{ .x = 0, .y = 0 } };
     tank.controller = .{};
     tank.drift = .{};
     tank.race_context = .{};
@@ -175,7 +173,6 @@ pub fn main() !void {
     state.inventory.set_player(player_id);
 
     const scene = try rl.loadRenderTexture(RENDER_WIDTH, RENDER_HEIGHT);
-
 
     rl.setTargetFPS(144);
     while (!rl.windowShouldClose()) {
@@ -193,7 +190,6 @@ pub fn main() !void {
         state.camera.target(transform.position);
         const delta = transform.rotation + std.math.pi * 0.5 - state.camera.rotation;
         state.camera.rotation += delta / 24;
-
 
         scene.begin();
         rl.clearBackground(.black);

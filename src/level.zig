@@ -4,7 +4,6 @@ const renderer = @import("renderer.zig");
 const entity = @import("entity.zig");
 const prefab = @import("prefabs.zig");
 
-
 pub const Levels = struct {
     pub const level_one: []const u8 = "level1";
 };
@@ -111,7 +110,6 @@ pub const Finish = struct {
         const dist_sq = position.subtract(closest).lengthSqr();
 
         return dist_sq <= radius * radius;
-
     }
 };
 
@@ -136,19 +134,10 @@ pub const Level = struct {
     pub fn init(comptime directory: []const u8, allocator: std.mem.Allocator) !Self {
         const text = try rl.loadTexture(levels_path ++ directory ++ "/graphics.png");
 
-        return .{
-            .physics_image = try rl.loadImage(levels_path ++ directory ++ "/physics.png"),
-            .graphics_texture = text,
-            .intermediate_texture = try rl.loadRenderTexture(720, 480),
-            .metadata = Metadata.load(levels_path ++ directory ++ "/metadata") catch .{},
-            .startup_entities = try load_entities_from_file(levels_path ++ directory ++ "/entities", allocator),
-            .checkpoints = try load_checkpoints_from_file(levels_path ++ directory ++ "/checkpoints", allocator),
-            .finish = try load_finish_from_file(levels_path ++ directory ++ "/finish", allocator),
-            .shader = try rl.loadShader(
-                null,
-                "assets/shaders/world.fs",
-            )
-        };
+        return .{ .physics_image = try rl.loadImage(levels_path ++ directory ++ "/physics.png"), .graphics_texture = text, .intermediate_texture = try rl.loadRenderTexture(720, 480), .metadata = Metadata.load(levels_path ++ directory ++ "/metadata") catch .{}, .startup_entities = try load_entities_from_file(levels_path ++ directory ++ "/entities", allocator), .checkpoints = try load_checkpoints_from_file(levels_path ++ directory ++ "/checkpoints", allocator), .finish = try load_finish_from_file(levels_path ++ directory ++ "/finish", allocator), .shader = try rl.loadShader(
+            null,
+            "assets/shaders/world.fs",
+        ) };
     }
 
     pub fn load_ecs(self: Self, ecs: *entity.ECS) void {
@@ -167,8 +156,8 @@ pub const Level = struct {
         const f_width: f32 = @floatFromInt(texture.width);
         const f_height: f32 = @floatFromInt(texture.height);
         texture.drawPro(
-            .{ .x = 0, .y = 0, .width = f_width, .height = f_height},
-            .{ .x = relative_pos.x, .y = relative_pos.y, .width = f_width, .height = f_height},
+            .{ .x = 0, .y = 0, .width = f_width, .height = f_height },
+            .{ .x = relative_pos.x, .y = relative_pos.y, .width = f_width, .height = f_height },
             .{ .x = 0, .y = 0 },
             std.math.radiansToDegrees(-camera.rotation),
             .white,
@@ -196,7 +185,7 @@ pub const Level = struct {
         const buf = try file.readToEndAlloc(allocator, 200000000);
         defer allocator.free(buf);
 
-        const parser = try std.json.parseFromSlice(Finish , allocator, buf, .{ .ignore_unknown_fields = true });
+        const parser = try std.json.parseFromSlice(Finish, allocator, buf, .{ .ignore_unknown_fields = true });
         defer parser.deinit();
 
         return parser.value;
@@ -276,7 +265,6 @@ pub const Level = struct {
         const finish_file = try std.fs.cwd().createFile(levels_path ++ directory ++ "/finish", .{});
         defer finish_file.close();
         try std.json.stringify(self.finish, .{}, finish_file.writer());
-
 
         var arr: std.ArrayListUnmanaged(BinEntity) = .{};
         defer arr.deinit(allocator);
