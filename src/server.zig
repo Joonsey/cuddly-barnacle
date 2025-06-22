@@ -3,16 +3,26 @@ const udptp = @import("udptp");
 const rl = @import("raylib");
 
 const shared = @import("shared.zig");
+const to_fixed = @import("util.zig").to_fixed;
 
 const Player = struct {
     id: u32,
     index: usize,
 };
 
+const State = enum {
+    Lobby,
+    Playing,
+};
+
 const GameServerContext = struct {
     num_players: usize,
     players: std.AutoHashMapUnmanaged(udptp.network.EndPoint, Player),
     updates: [shared.MAX_PLAYERS]shared.SyncPacket,
+    ready_check: [shared.MAX_PLAYERS]shared.LobbySync,
+    state: State,
+    update_count: u32 = 0,
+
     allocator: std.mem.Allocator,
 
     const Self = @This();
@@ -21,6 +31,8 @@ const GameServerContext = struct {
             .num_players = 0,
             .players = .{},
             .updates = std.mem.zeroes([shared.MAX_PLAYERS]shared.SyncPacket),
+            .ready_check = std.mem.zeroes([shared.MAX_PLAYERS]shared.LobbySync),
+            .state = .Lobby,
             .allocator = allocator,
         };
     }
@@ -32,9 +44,41 @@ const GameServerContext = struct {
 
 const GameServerType = udptp.Server(GameServerContext);
 
+pub fn cleanup_dead_clients(self: *GameServer) void {
+    const server = self.server;
+    var iter = server.clients.iterator();
+    const now = std.time.microTimestamp();
+    while (iter.next()) |entry| {
+        const client = entry.key_ptr;
+        const timestamp = entry.value_ptr;
+        const delta = now - timestamp.*;
+
+        if (delta > std.time.us_per_s * 5) {
+            if (self.ctx.players.fetchRemove(client.*)) |key_value| {
+                const player = key_value.value;
+                var _iter = self.ctx.players.valueIterator();
+                while (_iter.next()) |value| {
+                    if (value.index > player.index) {
+                        value.index -= 1;
+                    }
+                }
+
+                for (player.index..shared.MAX_PLAYERS - 1) |i| {
+                    self.ctx.ready_check[i] = self.ctx.ready_check[i + 1];
+                    self.ctx.updates[i] = self.ctx.updates[i + 1];
+                }
+
+                self.ctx.num_players -= 1;
+
+                std.log.debug("id: {d} idx: {d} timed out", .{ key_value.value.id, key_value.value.index });
+            }
+        }
+    }
+}
+
 pub fn handle_packet_cb(self: *GameServerType, data: []const u8, sender: udptp.network.EndPoint) udptp.PacketError!void {
     const ctx = self.ctx;
-    const packet: shared.GameServerPacket = try .deserialize(data, ctx.allocator);
+    const packet: shared.Packet = try .deserialize(data, ctx.allocator);
     defer packet.free(ctx.allocator);
 
     switch (packet.header.packet_type) {
@@ -45,8 +89,18 @@ pub fn handle_packet_cb(self: *GameServerType, data: []const u8, sender: udptp.n
             if (ctx.players.size >= 12) {
                 std.log.warn("{d} got rejected, because server is full", .{payload.id});
             } else {
-                ctx.players.put(ctx.allocator, sender, .{ .id = payload.id, .index = ctx.num_players }) catch unreachable;
-                ctx.num_players += 1;
+                var iter = ctx.players.iterator();
+                var exists = false;
+                while (iter.next()) |player| {
+                    if (player.value_ptr.id == payload.id) {
+                        std.log.warn("{d} got rejected, because duplicate id", .{payload.id});
+                        exists = true;
+                    }
+                }
+                if (!exists) {
+                    ctx.players.put(ctx.allocator, sender, .{ .id = payload.id, .index = ctx.num_players }) catch unreachable;
+                    ctx.num_players += 1;
+                }
             }
         },
         .update => {
@@ -55,6 +109,20 @@ pub fn handle_packet_cb(self: *GameServerType, data: []const u8, sender: udptp.n
                 ctx.updates[player.index] = .{ .id = player.id, .update = payload };
             }
         },
+        .review_request => {
+            const payload = try udptp.deserialize_payload(packet.payload, shared.ReviewResponsePayload);
+            const response_packet = shared.Packet.init(.ack, "zigkartracing") catch unreachable;
+            const response_data = response_packet.serialize(ctx.allocator) catch unreachable;
+            defer self.allocator.free(response_data);
+            self.send_to(.{ .address = .{ .ipv4 = .{ .value = payload.join_request.ip } }, .port = payload.join_request.port }, response_data);
+        },
+        .lobby_update => {
+            if (ctx.players.get(sender)) |player| {
+                const payload = try udptp.deserialize_payload(packet.payload, shared.LobbyUpdate);
+                ctx.ready_check[player.index] = .{ .id = player.id, .update = payload };
+            }
+        },
+        else => {},
     }
 
     return;
@@ -103,7 +171,47 @@ pub const GameServer = struct {
         // sync players may want to send time-sensetive information (such as prefab) at times where we are prone for disconnect
         // only sharing update Sync packets during game, at which point new .ack packets are dissallowed, maybe?
         var buffer: [1024]u8 = undefined;
-        const packet = shared.GameServerPacket.init(.sync, udptp.serialize_payload(&buffer, self.ctx.updates[0..self.ctx.num_players]) catch unreachable) catch unreachable;
+        const packet = shared.Packet.init(.sync, udptp.serialize_payload(&buffer, self.ctx.updates[0..self.ctx.num_players]) catch unreachable) catch unreachable;
+
+        const data = packet.serialize(self.allocator) catch unreachable;
+        self.broadcast(data);
+        defer self.allocator.free(data);
+    }
+
+    fn matchmaking_keepalive(self: *Self) void {
+        const packet = shared.Packet.init(.keepalive, "peep") catch unreachable;
+        const data = packet.serialize(self.allocator) catch unreachable;
+        self.send_mm(data);
+        self.allocator.free(data);
+    }
+
+    fn update_state(self: *Self) void {
+        const previous_state = self.ctx.state;
+        switch (self.ctx.state) {
+            .Lobby => {
+                var number_of_ready_players: usize = 0;
+                for (self.ctx.ready_check[0..self.ctx.num_players]) |ready| {
+                    if (ready.update.ready) number_of_ready_players += 1;
+                }
+                if (self.ctx.num_players == number_of_ready_players and self.ctx.num_players >= 4) {
+                    self.ctx.state = .Playing;
+                }
+            },
+            .Playing => {},
+        }
+
+        if (previous_state == self.ctx.state) return;
+        switch (self.ctx.state) {
+            .Lobby => self.alert_host("GAME2"),
+            .Playing => {},
+        }
+
+        std.log.err("{any}", .{self.ctx.state});
+    }
+
+    fn sync_lobby(self: *Self) void {
+        var buffer: [1024]u8 = undefined;
+        const packet = shared.Packet.init(.lobby_sync, udptp.serialize_payload(&buffer, self.ctx.ready_check[0..self.ctx.num_players]) catch unreachable) catch unreachable;
 
         const data = packet.serialize(self.allocator) catch unreachable;
         self.broadcast(data);
@@ -112,7 +220,22 @@ pub const GameServer = struct {
 
     fn listen(self: *Self) void {
         while (!self.should_quit) {
-            if (self.ctx.num_players > 0) self.sync_players();
+            self.ctx.update_count += 1;
+            switch (self.ctx.state) {
+                .Lobby => {
+                    if (self.ctx.update_count % 500 == 0) {
+                        self.matchmaking_keepalive();
+                        self.sync_lobby();
+                    }
+                    cleanup_dead_clients(self);
+                },
+                .Playing => if (self.ctx.num_players > 0) {
+                    if (self.ctx.update_count % 50 == 0) {
+                        self.sync_players();
+                    }
+                },
+            }
+            self.update_state();
             self.server.listen() catch |err| switch (err) {
                 error.WouldBlock => continue,
                 else => {
@@ -121,6 +244,21 @@ pub const GameServer = struct {
                 },
             };
         }
+    }
+
+    fn send_mm(self: *Self, data: []const u8) void {
+        self.server.send_to(shared.MatchmakingEndpoint, data);
+    }
+
+    fn alert_host(self: *Self, name: []const u8) void {
+        var buffer: [1024]u8 = undefined;
+        const packet = shared.Packet.init(.host, udptp.serialize_payload(&buffer, shared.HostPayload{
+            .q = .{ .scope = shared.SCOPE, .key = to_fixed(name, 32) },
+            .policy = .AutoAccept,
+        }) catch unreachable) catch unreachable;
+        const data = packet.serialize(self.allocator) catch unreachable;
+        self.send_mm(data);
+        self.allocator.free(data);
     }
 
     pub fn stop(self: *Self) void {
@@ -132,6 +270,7 @@ pub const GameServer = struct {
     }
 
     pub fn start(self: *Self) void {
+        self.alert_host("GAME1");
         self.server.set_read_timeout(1000);
 
         self.server_thread = std.Thread.spawn(.{}, Self.listen, .{self}) catch unreachable;

@@ -79,6 +79,12 @@ const inventory = struct {
     }
 };
 
+const State = enum {
+    Playing,
+    Browsing,
+    Lobby,
+};
+
 const Gamestate = struct {
     ecs: entity.ECS,
     level: Level,
@@ -87,6 +93,15 @@ const Gamestate = struct {
     particles: Particles,
     inventory: inventory,
     client: client.GameClient,
+
+    state: State,
+
+    selector: usize = 0,
+    ready: bool = false,
+    frame_count: u32 = 0,
+
+    server: ?server.GameServer = null,
+    room: ?client.Room = null,
 
     allocator: std.mem.Allocator,
     const Self = @This();
@@ -100,8 +115,22 @@ const Gamestate = struct {
             .inventory = .init(allocator, 289289),
             .client = .init(allocator),
 
+            .state = .Browsing,
+
             .allocator = allocator,
         };
+    }
+
+    pub fn spawn_player(self: *Self, spawn_index: usize) void {
+        var tank = prefab.get(.tank);
+        tank.transform.?.position = self.level.finish.get_spawn(spawn_index);
+        tank.transform.?.rotation = self.level.finish.get_direction();
+        tank.kinetic = .{ .velocity = .{ .x = 0, .y = 0 } };
+        tank.controller = .{};
+        tank.drift = .{};
+        tank.race_context = .{};
+        const player_id = self.ecs.spawn(tank);
+        self.inventory.set_player(player_id);
     }
 
     pub fn use_item(self: *Self) void {
@@ -125,35 +154,119 @@ const Gamestate = struct {
         self.particles.deinit();
         self.inventory.deinit();
         self.client.deinit();
+        if (self.server) |*s| s.deinit();
+    }
+
+    fn change_state(self: *Self, new_state: State) void {
+        if (self.state == new_state) return;
+
+        switch (new_state) {
+            .Lobby => {
+                self.selector = 0;
+                self.ready = false;
+            },
+            .Playing => {
+                self.selector = 0;
+                self.ready = false;
+            },
+            .Browsing => {
+                self.selector = 0;
+                self.ready = false;
+                self.room = null;
+                if (self.server) |*s| {
+                    s.stop();
+                    s.deinit();
+                    self.server = null;
+                }
+            },
+        }
+
+        self.state = new_state;
     }
 
     pub fn update(self: *Self, deltatime: f32) void {
-        self.ecs.update(deltatime, self.level);
-        self.level.update_intermediate_texture(self.camera);
-        self.tracks.update(&self.ecs);
-        self.particles.update(deltatime, self.ecs);
+        self.frame_count += 1;
+        switch (self.state) {
+            .Playing => {
+                self.ecs.update(deltatime, self.level);
+                self.level.update_intermediate_texture(self.camera);
+                self.tracks.update(&self.ecs);
+                self.particles.update(deltatime, self.ecs);
 
-        if (rl.isKeyPressed(.j)) self.use_item();
+                if (rl.isKeyPressed(.j)) self.use_item();
 
-        // TODO
-        const player = self.ecs.get(self.inventory.player_id);
-        self.client.send_player_update(player);
-        self.client.sync(&self.ecs);
+                // TODO
+                var player = self.ecs.get(self.inventory.player_id);
+                self.client.send_player_update(player);
+                self.client.sync(&self.ecs);
+
+                const transform = &player.transform.?;
+                var kinetics = &player.kinetic.?;
+                const traction = self.level.get_traction(transform.position);
+
+                kinetics.speed_multiplier = traction.speed_multiplier();
+                kinetics.friction = traction.friction();
+
+                self.camera.target(transform.position);
+                const delta = transform.rotation + std.math.pi * 0.5 - self.camera.rotation;
+                self.camera.rotation += delta / 24;
+            },
+            .Browsing => {
+                self.client.update_rooms();
+                self.client.ctx.lock.lockShared();
+                const rooms = self.client.get_rooms();
+                if (rl.isKeyPressed(.t) and rooms.len > 0) {
+                    self.client.join(rooms[self.selector]);
+                    self.change_state(.Lobby);
+                }
+
+                if (rl.isKeyPressed(.w)) self.selector = self.selector + 1 % rooms.len;
+                if (rl.isKeyPressed(.s)) self.selector = self.selector - 1 % rooms.len;
+
+                if (rl.isKeyPressed(.q)) {
+                    self.server = .init(self.allocator);
+                    self.server.?.start();
+                }
+                self.client.ctx.lock.unlockShared();
+            },
+            .Lobby => {
+                if (rl.isKeyPressed(.r)) self.ready = !self.ready;
+                self.client.send_lobby_update(.{ .ready = self.ready });
+            },
+        }
     }
 
     pub fn draw(self: Self) void {
-        self.level.draw(self.camera);
-        self.tracks.draw(self.camera);
-        self.particles.draw(self.camera);
-        self.ecs.draw(self.camera);
+        switch (self.state) {
+            .Playing => {
+                self.level.draw(self.camera);
+                self.tracks.draw(self.camera);
+                self.particles.draw(self.camera);
+                self.ecs.draw(self.camera);
 
-        self.inventory.draw();
+                self.inventory.draw();
+            },
+            .Browsing => {
+                self.client.ctx.lock.lockShared();
+                const rooms = self.client.get_rooms();
+                for (0..rooms.len) |i| {
+                    const room = rooms[i];
+                    rl.drawText(rl.textFormat("%s", .{&room.name}), 100, 32 + 20 * @as(i32, @intCast(i)), 20, if (self.selector == i) .yellow else .white);
+                }
+                self.client.ctx.lock.unlockShared();
+            },
+            .Lobby => {
+                self.client.ctx.lock.lockShared();
+                const ready_status = self.client.ctx.ready_check[0..self.client.ctx.num_players];
+                for (0..ready_status.len) |i| {
+                    const status = ready_status[i];
+                    const ready = if (status.id == self.client.ctx.own_player_id) self.ready else status.update.ready;
+                    rl.drawText(rl.textFormat("%b", .{ready}), 100, 32 + 20 * @as(i32, @intCast(i)), 20, .white);
+                }
+                self.client.ctx.lock.unlockShared();
+            },
+        }
     }
-};
-
-const Game = struct {
-    state: Gamestate,
-    server: ?server.GameServer,
 };
 
 pub fn main() !void {
@@ -174,24 +287,15 @@ pub fn main() !void {
     defer state.deinit();
 
     const random_network_id = std.crypto.random.int(u32);
-    state.client.own_player_id = random_network_id; // network id, not entity id
+    state.client.ctx.own_player_id = random_network_id; // network id, not entity id
 
-    state.client.connect_and_listen("127.0.0.1", 8080);
+    state.client.start();
+    state.client.update_rooms();
 
     state.ecs.register_observer(.{ .callback = &Particles.on_event, .context = &state.particles });
     state.ecs.register_observer(.{ .callback = &inventory.on_event, .context = &state.inventory });
 
     state.level.load_ecs(&state.ecs);
-
-    var tank = prefab.get(.tank);
-    tank.transform.?.position = state.level.finish.get_spawn(0);
-    tank.transform.?.rotation = state.level.finish.get_direction();
-    tank.kinetic = .{ .velocity = .{ .x = 0, .y = 0 } };
-    tank.controller = .{};
-    tank.drift = .{};
-    tank.race_context = .{};
-    const player_id = state.ecs.spawn(tank);
-    state.inventory.set_player(player_id);
 
     const scene = try rl.loadRenderTexture(RENDER_WIDTH, RENDER_HEIGHT);
 
@@ -200,24 +304,9 @@ pub fn main() !void {
         const deltatime = rl.getFrameTime();
         state.update(deltatime);
 
-        var player = state.ecs.get_mut(player_id);
-        const transform = &player.transform.?;
-        var kinetics = &player.kinetic.?;
-        const traction = state.level.get_traction(transform.position);
-
-        kinetics.speed_multiplier = traction.speed_multiplier();
-        kinetics.friction = traction.friction();
-
-        state.camera.target(transform.position);
-        const delta = transform.rotation + std.math.pi * 0.5 - state.camera.rotation;
-        state.camera.rotation += delta / 24;
-
         scene.begin();
         rl.clearBackground(.black);
         state.draw();
-
-        const race_context = player.race_context.?;
-        rl.drawText(rl.textFormat("%d/3", .{race_context.lap + 1}), 0, 16, 20, .white);
 
         scene.end();
 
