@@ -6,6 +6,7 @@ const level = @import("level.zig");
 const Camera = renderer.Camera;
 const Renderable = renderer.Renderable;
 
+pub const Prefab = prefab.Prefab;
 pub const EntityId = u32;
 
 pub const Controller = struct {
@@ -86,13 +87,13 @@ pub const Controller = struct {
     }
 };
 
-pub const Transform = struct {
+pub const Transform = extern struct {
     position: rl.Vector2,
     height: f32 = 0,
     rotation: f32 = 0,
 };
 
-pub const RaceContext = struct {
+pub const RaceContext = extern struct {
     lap: usize = 0,
     checkpoint: usize = 0,
 };
@@ -132,7 +133,7 @@ pub const Drift = struct {
     direction: f32 = 0,
 };
 
-pub const Kinetic = struct {
+pub const Kinetic = extern struct {
     velocity: rl.Vector2,
     friction: f32 = 0.8,
     speed_multiplier: f32 = 1,
@@ -180,7 +181,7 @@ pub const Entity = struct {
     transform: ?Transform = null,
     shadow: ?Shadow = null,
     archetype: Archetype = .None,
-    prefab: ?prefab.Prefab = null,
+    prefab: ?Prefab = null,
     race_context: ?RaceContext = null,
     drift: ?Drift = null,
     timer: ?Timer = null,

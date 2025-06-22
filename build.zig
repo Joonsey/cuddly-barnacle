@@ -39,18 +39,24 @@ pub fn build(b: *std.Build) void {
     // This creates another `std.Build.Step.Compile`, but this one builds an executable
     // rather than a static library.
     const exe = b.addExecutable(.{
-        .name = "cuddly_barnacle",
+        .name = "game",
         .root_module = exe_mod,
     });
 
     const editor = b.addExecutable(.{
-        .name = "cuddly_barnacle",
+        .name = "editor",
         .root_module = editor_exe_mod,
     });
 
     exe.linkLibrary(raylib_artifact);
     exe.root_module.addImport("raylib", raylib);
     exe.root_module.addImport("raygui", raygui);
+
+    const udptp_lib = b.dependency("udptp", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    exe.root_module.addImport("udptp", udptp_lib.module("udptp"));
 
     editor.linkLibrary(raylib_artifact);
     editor.root_module.addImport("raylib", raylib);

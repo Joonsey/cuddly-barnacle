@@ -2,7 +2,7 @@ const std = @import("std");
 const entity = @import("entity.zig");
 const renderer = @import("renderer.zig");
 
-pub const Prefab = enum {
+pub const Prefab = enum(u8) {
     cube,
     tank,
     itembox,

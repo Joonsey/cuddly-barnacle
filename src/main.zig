@@ -9,6 +9,8 @@ const Levels = @import("level.zig").Levels;
 const prefab = @import("prefabs.zig");
 const Tracks = @import("tracks.zig").Tracks;
 const Particles = @import("particles.zig").Particles;
+const server = @import("server.zig");
+const client = @import("clients.zig");
 
 var WINDOW_WIDTH: i32 = 1600;
 var WINDOW_HEIGHT: i32 = 900;
@@ -84,6 +86,7 @@ const Gamestate = struct {
     tracks: Tracks,
     particles: Particles,
     inventory: inventory,
+    client: client.GameClient,
 
     allocator: std.mem.Allocator,
     const Self = @This();
@@ -95,6 +98,7 @@ const Gamestate = struct {
             .tracks = try .init(allocator),
             .particles = .init(allocator),
             .inventory = .init(allocator, 289289),
+            .client = .init(allocator),
 
             .allocator = allocator,
         };
@@ -120,6 +124,7 @@ const Gamestate = struct {
         self.tracks.deinit();
         self.particles.deinit();
         self.inventory.deinit();
+        self.client.deinit();
     }
 
     pub fn update(self: *Self, deltatime: f32) void {
@@ -129,6 +134,11 @@ const Gamestate = struct {
         self.particles.update(deltatime, self.ecs);
 
         if (rl.isKeyPressed(.j)) self.use_item();
+
+        // TODO
+        const player = self.ecs.get(self.inventory.player_id);
+        self.client.send_player_update(player);
+        self.client.sync(&self.ecs);
     }
 
     pub fn draw(self: Self) void {
@@ -141,7 +151,13 @@ const Gamestate = struct {
     }
 };
 
+const Game = struct {
+    state: Gamestate,
+    server: ?server.GameServer,
+};
+
 pub fn main() !void {
+    rl.setTraceLogLevel(.err);
     rl.initWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "test");
     var DBA = std.heap.DebugAllocator(.{}){};
     defer switch (DBA.deinit()) {
@@ -156,6 +172,11 @@ pub fn main() !void {
 
     var state: Gamestate = try .init(allocator, Levels.level_one);
     defer state.deinit();
+
+    const random_network_id = std.crypto.random.int(u32);
+    state.client.own_player_id = random_network_id; // network id, not entity id
+
+    state.client.connect_and_listen("127.0.0.1", 8080);
 
     state.ecs.register_observer(.{ .callback = &Particles.on_event, .context = &state.particles });
     state.ecs.register_observer(.{ .callback = &inventory.on_event, .context = &state.inventory });
