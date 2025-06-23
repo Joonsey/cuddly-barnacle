@@ -1,19 +1,22 @@
 const udptp = @import("udptp");
 
 const entity = @import("entity.zig");
+const Levels = @import("level.zig").Levels;
 
 const to_fixed = @import("util.zig").to_fixed;
 
 pub const MAX_PLAYERS = 12;
+pub const MIN_PLAYERS = 2;
 pub const SERVER_PORT = 8080;
 pub const MATCHMAKING_PORT = 8469;
+pub const LOCALHOST_IP = .{ 127, 0, 0, 1 };
 
 pub const SCOPE = to_fixed("zigkartracing", 32);
 
 pub const PlayerId = u32;
 
 pub const MatchmakingEndpoint: udptp.network.EndPoint = .{
-    .address = .{ .ipv4 = .{ .value = .{ 127, 0, 0, 1 } } },
+    .address = .{ .ipv4 = .{ .value = LOCALHOST_IP } },
     .port = MATCHMAKING_PORT,
 };
 
@@ -50,6 +53,7 @@ pub const PacketType = enum(u32) {
     lobby_update,
     sync,
     lobby_sync,
+    server_state_changed,
 };
 
 pub const Packet = udptp.Packet(.{ .T = PacketType, .magic_bytes = 0x13800818 });
@@ -114,4 +118,23 @@ pub const LobbySync = extern struct {
 pub const LobbyUpdate = extern struct {
     ready: bool,
     vote: usize = 0,
+};
+
+pub const State = enum(u8) {
+    Lobby,
+    Starting,
+    Playing,
+    Finishing,
+};
+
+pub const ServerState = extern struct {
+    state: State,
+    ctx: extern struct {
+        time: i64,
+
+        const Self = @This();
+        pub fn reset(self: *Self) void {
+            self.time = 0;
+        }
+    },
 };

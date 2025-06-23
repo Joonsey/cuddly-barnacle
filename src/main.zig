@@ -11,6 +11,8 @@ const Tracks = @import("tracks.zig").Tracks;
 const Particles = @import("particles.zig").Particles;
 const server = @import("server.zig");
 const client = @import("clients.zig");
+const util = @import("util.zig");
+const shared = @import("shared.zig");
 
 var WINDOW_WIDTH: i32 = 1600;
 var WINDOW_HEIGHT: i32 = 900;
@@ -95,6 +97,7 @@ const Gamestate = struct {
     client: client.GameClient,
 
     state: State,
+    start_time: i64 = 0,
 
     selector: usize = 0,
     ready: bool = false,
@@ -123,7 +126,7 @@ const Gamestate = struct {
 
     pub fn spawn_player(self: *Self, spawn_index: usize) void {
         var tank = prefab.get(.tank);
-        tank.transform.?.position = self.level.finish.get_spawn(spawn_index);
+        tank.transform.?.position = self.level.finish.get_spawn(1 + spawn_index);
         tank.transform.?.rotation = self.level.finish.get_direction();
         tank.kinetic = .{ .velocity = .{ .x = 0, .y = 0 } };
         tank.controller = .{};
@@ -157,6 +160,19 @@ const Gamestate = struct {
         if (self.server) |*s| s.deinit();
     }
 
+    pub fn reset(self: *Self) void {
+        self.ecs.deinit();
+        self.ecs = .init(self.allocator);
+
+        self.tracks.deinit();
+        self.tracks = Tracks.init(self.allocator) catch unreachable;
+
+        self.particles.deinit();
+        self.particles = Particles.init(self.allocator);
+
+        self.client.player_map.clearRetainingCapacity();
+    }
+
     fn change_state(self: *Self, new_state: State) void {
         if (self.state == new_state) return;
 
@@ -168,6 +184,15 @@ const Gamestate = struct {
             .Playing => {
                 self.selector = 0;
                 self.ready = false;
+                self.reset();
+                self.level.load_ecs(&self.ecs);
+                for (0..self.client.ctx.ready_check.len) |i| {
+                    const player = self.client.ctx.ready_check[i];
+                    if (player.id == self.client.ctx.own_player_id) {
+                        std.log.err("spawn player at idx {d}", .{i});
+                        self.spawn_player(i);
+                    }
+                }
             },
             .Browsing => {
                 self.selector = 0;
@@ -184,6 +209,13 @@ const Gamestate = struct {
         self.state = new_state;
     }
 
+    fn has_started(self: Self) bool {
+        return switch (self.state) {
+            .Playing => self.start_time < std.time.milliTimestamp(),
+            else => false,
+        };
+    }
+
     pub fn update(self: *Self, deltatime: f32) void {
         self.frame_count += 1;
         switch (self.state) {
@@ -196,12 +228,13 @@ const Gamestate = struct {
                 if (rl.isKeyPressed(.j)) self.use_item();
 
                 // TODO
-                var player = self.ecs.get(self.inventory.player_id);
-                self.client.send_player_update(player);
+                const player = self.ecs.get_mut(self.inventory.player_id);
+                player.controller = if (self.has_started()) .{} else null;
+                self.client.send_player_update(player.*);
                 self.client.sync(&self.ecs);
 
-                const transform = &player.transform.?;
-                var kinetics = &player.kinetic.?;
+                const transform = player.transform.?;
+                var kinetics = player.kinetic.?;
                 const traction = self.level.get_traction(transform.position);
 
                 kinetics.speed_multiplier = traction.speed_multiplier();
@@ -216,7 +249,7 @@ const Gamestate = struct {
                 self.client.ctx.lock.lockShared();
                 const rooms = self.client.get_rooms();
                 if (rl.isKeyPressed(.t) and rooms.len > 0) {
-                    self.client.join(rooms[self.selector]);
+                    self.client.join_room(rooms[self.selector]);
                     self.change_state(.Lobby);
                 }
 
@@ -225,15 +258,35 @@ const Gamestate = struct {
 
                 if (rl.isKeyPressed(.q)) {
                     self.server = .init(self.allocator);
-                    self.server.?.start();
+                    if (self.server) |*s| {
+                        s.start();
+                        self.client.join(util.to_fixed("GAME1", 32), shared.LOCALHOST_IP, shared.SERVER_PORT);
+                        self.change_state(.Lobby);
+                    }
                 }
                 self.client.ctx.lock.unlockShared();
             },
             .Lobby => {
                 if (rl.isKeyPressed(.r)) self.ready = !self.ready;
                 self.client.send_lobby_update(.{ .ready = self.ready });
+
+                const server_state = self.client.ctx.server_state;
+                switch (server_state.state) {
+                    .Starting => {
+                        // self.level = self.determine_level();
+                    },
+                    .Playing => {
+                        self.change_state(.Playing);
+                        self.start_time = server_state.ctx.time + std.time.ms_per_s * 5;
+                    },
+                    else => {},
+                }
             },
         }
+    }
+
+    fn determine_level(self: Self) Level {
+        return self.level;
     }
 
     pub fn draw(self: Self) void {
@@ -244,7 +297,14 @@ const Gamestate = struct {
                 self.particles.draw(self.camera);
                 self.ecs.draw(self.camera);
 
-                self.inventory.draw();
+                if (self.has_started()) {
+                    self.inventory.draw();
+                } else {
+                    const delta = self.start_time - std.time.milliTimestamp();
+                    const delta_seconds: f32 = @as(f32, @floatFromInt(delta)) / 1000;
+                    rl.drawText(rl.textFormat("%.1f", .{delta_seconds}), 102, 102, 30, .black);
+                    rl.drawText(rl.textFormat("%.1f", .{delta_seconds}), 100, 100, 30, .white);
+                }
             },
             .Browsing => {
                 self.client.ctx.lock.lockShared();
@@ -294,8 +354,6 @@ pub fn main() !void {
 
     state.ecs.register_observer(.{ .callback = &Particles.on_event, .context = &state.particles });
     state.ecs.register_observer(.{ .callback = &inventory.on_event, .context = &state.inventory });
-
-    state.level.load_ecs(&state.ecs);
 
     const scene = try rl.loadRenderTexture(RENDER_WIDTH, RENDER_HEIGHT);
 

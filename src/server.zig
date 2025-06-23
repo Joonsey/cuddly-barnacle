@@ -10,17 +10,12 @@ const Player = struct {
     index: usize,
 };
 
-const State = enum {
-    Lobby,
-    Playing,
-};
-
 const GameServerContext = struct {
     num_players: usize,
     players: std.AutoHashMapUnmanaged(udptp.network.EndPoint, Player),
     updates: [shared.MAX_PLAYERS]shared.SyncPacket,
     ready_check: [shared.MAX_PLAYERS]shared.LobbySync,
-    state: State,
+    state: shared.ServerState,
     update_count: u32 = 0,
 
     allocator: std.mem.Allocator,
@@ -32,7 +27,7 @@ const GameServerContext = struct {
             .players = .{},
             .updates = std.mem.zeroes([shared.MAX_PLAYERS]shared.SyncPacket),
             .ready_check = std.mem.zeroes([shared.MAX_PLAYERS]shared.LobbySync),
-            .state = .Lobby,
+            .state = .{ .state = .Lobby, .ctx = .{ .time = 0 } },
             .allocator = allocator,
         };
     }
@@ -186,27 +181,46 @@ pub const GameServer = struct {
     }
 
     fn update_state(self: *Self) void {
-        const previous_state = self.ctx.state;
-        switch (self.ctx.state) {
+        const previous_state = self.ctx.state.state;
+        const timestamp = std.time.milliTimestamp();
+
+        var number_of_ready_players: usize = 0;
+        for (self.ctx.ready_check[0..self.ctx.num_players]) |ready| {
+            if (ready.update.ready) number_of_ready_players += 1;
+        }
+
+        switch (self.ctx.state.state) {
             .Lobby => {
-                var number_of_ready_players: usize = 0;
-                for (self.ctx.ready_check[0..self.ctx.num_players]) |ready| {
-                    if (ready.update.ready) number_of_ready_players += 1;
-                }
-                if (self.ctx.num_players == number_of_ready_players and self.ctx.num_players >= 4) {
-                    self.ctx.state = .Playing;
+                if (self.ctx.num_players == number_of_ready_players and self.ctx.num_players >= shared.MIN_PLAYERS) {
+                    self.ctx.state.state = .Starting;
+                    self.ctx.state.ctx.time = timestamp + std.time.ms_per_s * 5;
                 }
             },
-            .Playing => {},
+            .Playing, .Finishing => {},
+            .Starting => {
+                if (self.ctx.num_players != number_of_ready_players or self.ctx.num_players < shared.MIN_PLAYERS) {
+                    self.ctx.state.state = .Lobby;
+                } else if (timestamp >= self.ctx.state.ctx.time) {
+                    self.ctx.state.state = .Playing;
+                }
+            },
         }
 
-        if (previous_state == self.ctx.state) return;
-        switch (self.ctx.state) {
+        if (previous_state == self.ctx.state.state) return;
+        switch (self.ctx.state.state) {
             .Lobby => self.alert_host("GAME2"),
-            .Playing => {},
+            .Playing, .Finishing, .Starting => {},
         }
 
-        std.log.err("{any}", .{self.ctx.state});
+        var buffer: [1024]u8 = undefined;
+
+        const packet = shared.Packet.init(.server_state_changed, udptp.serialize_payload(&buffer, self.ctx.state) catch unreachable) catch unreachable;
+
+        const data = packet.serialize(self.allocator) catch unreachable;
+        self.broadcast(data);
+        defer self.allocator.free(data);
+
+        std.log.debug("SERVER state changed to: {any}", .{self.ctx.state.state});
     }
 
     fn sync_lobby(self: *Self) void {
@@ -221,15 +235,15 @@ pub const GameServer = struct {
     fn listen(self: *Self) void {
         while (!self.should_quit) {
             self.ctx.update_count += 1;
-            switch (self.ctx.state) {
-                .Lobby => {
+            switch (self.ctx.state.state) {
+                .Lobby, .Starting => {
                     if (self.ctx.update_count % 500 == 0) {
                         self.matchmaking_keepalive();
                         self.sync_lobby();
                     }
                     cleanup_dead_clients(self);
                 },
-                .Playing => if (self.ctx.num_players > 0) {
+                .Playing, .Finishing => if (self.ctx.num_players > 0) {
                     if (self.ctx.update_count % 50 == 0) {
                         self.sync_players();
                     }

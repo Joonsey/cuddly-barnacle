@@ -13,6 +13,8 @@ const GameClientContext = struct {
     updates: [shared.MAX_PLAYERS]shared.SyncPacket,
     ready_check: [shared.MAX_PLAYERS]shared.LobbySync,
 
+    server_state: shared.ServerState,
+
     own_player_id: shared.PlayerId = 0,
 
     rooms: std.ArrayListUnmanaged(shared.Room),
@@ -26,6 +28,7 @@ const GameClientContext = struct {
             .allocator = allocator,
             .updates = undefined,
             .ready_check = undefined,
+            .server_state = .{ .state = .Lobby, .ctx = .{ .time = 0 } },
             .rooms = .{},
             .lock = .{},
         };
@@ -89,6 +92,9 @@ fn handle_packet(self: *GameClientType, data: []const u8, sender: udptp.network.
             defer self.allocator.free(response_data);
 
             self.send(response_data);
+        },
+        .server_state_changed => {
+            self.ctx.server_state = udptp.deserialize_payload(packet.payload, shared.ServerState) catch unreachable;
         },
         else => {},
     }
@@ -170,9 +176,13 @@ pub const GameClient = struct {
         self.client.sendto(shared.MatchmakingEndpoint, data);
     }
 
-    pub fn join(self: *Self, room: shared.Room) void {
+    pub fn join_room(self: *Self, room: shared.Room) void {
+        self.join(room.name, room.ip, room.port);
+    }
+
+    pub fn join(self: *Self, room_name: [32]u8, ip: [4]u8, port: u16) void {
         var buffer: [512]u8 = undefined;
-        const mm_packet = shared.Packet.init(.join, udptp.serialize_payload(&buffer, shared.JoinPayload{ .scope = shared.SCOPE, .key = room.name }) catch unreachable) catch unreachable;
+        const mm_packet = shared.Packet.init(.join, udptp.serialize_payload(&buffer, shared.JoinPayload{ .scope = shared.SCOPE, .key = room_name }) catch unreachable) catch unreachable;
         const mm_data = mm_packet.serialize(self.allocator) catch unreachable;
         defer self.allocator.free(mm_data);
 
@@ -183,7 +193,7 @@ pub const GameClient = struct {
         const data = packet.serialize(self.allocator) catch unreachable;
         defer self.allocator.free(data);
 
-        self.client.target = .{ .address = .{ .ipv4 = .{ .value = room.ip } }, .port = room.port };
+        self.client.target = .{ .address = .{ .ipv4 = .{ .value = ip } }, .port = port };
         self.client.send(data);
     }
 
@@ -198,6 +208,7 @@ pub const GameClient = struct {
 
             // bandaid fix
             if (update.id == 0) continue;
+            if (update.update.prefab != .tank) continue;
 
             if (self.player_map.get(update.id)) |entity_id| {
                 const entity_to_sync = ecs.get_mut(entity_id);
