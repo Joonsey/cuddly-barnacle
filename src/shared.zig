@@ -29,6 +29,8 @@ pub const UpdatePacket = extern struct {
     race_context: entity.RaceContext,
     kinetic: entity.Kinetic,
     prefab: entity.Prefab,
+    drift: entity.Drift,
+    boost: entity.Boost,
 };
 
 pub const SyncPacket = extern struct {

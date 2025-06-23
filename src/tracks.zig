@@ -38,23 +38,20 @@ pub const Tracks = struct {
         for (ecs.entities.items, 0..) |e, i| {
             if (e.drift) |drift| {
                 if (e.transform) |transform| {
-                    switch (drift.state) {
-                        .charging => {
-                            const index: usize = self.indexes.get(@intCast(i)) orelse blk: {
-                                self.indexes.put(self.allocator, @intCast(i), 0) catch unreachable;
-                                break :blk 0;
-                            };
-                            const query: Query = .{ .index = index, .entity = @intCast(i) };
-                            var tracks: std.ArrayListUnmanaged(Track) = self.tracks.get(query) orelse .{};
-                            tracks.append(self.allocator, .{ .position = transform.position, .rotation = transform.rotation }) catch unreachable;
-                            self.tracks.put(self.allocator, query, tracks) catch unreachable;
-                        },
-                        else => {
-                            if (self.indexes.getPtr(@intCast(i))) |index| {
-                                const query: Query = .{ .index = index.*, .entity = @intCast(i) };
-                                if (self.tracks.get(query)) |_| index.* += 1;
-                            }
-                        },
+                    if (drift.is_drifting) {
+                        const index: usize = self.indexes.get(@intCast(i)) orelse blk: {
+                            self.indexes.put(self.allocator, @intCast(i), 0) catch unreachable;
+                            break :blk 0;
+                        };
+                        const query: Query = .{ .index = index, .entity = @intCast(i) };
+                        var tracks: std.ArrayListUnmanaged(Track) = self.tracks.get(query) orelse .{};
+                        tracks.append(self.allocator, .{ .position = transform.position, .rotation = transform.rotation }) catch unreachable;
+                        self.tracks.put(self.allocator, query, tracks) catch unreachable;
+                    } else {
+                        if (self.indexes.getPtr(@intCast(i))) |index| {
+                            const query: Query = .{ .index = index.*, .entity = @intCast(i) };
+                            if (self.tracks.get(query)) |_| index.* += 1;
+                        }
                     }
                 }
             }

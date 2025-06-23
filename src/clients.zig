@@ -215,11 +215,15 @@ pub const GameClient = struct {
                 entity_to_sync.transform = update.update.transform;
                 entity_to_sync.kinetic = update.update.kinetic;
                 entity_to_sync.race_context = update.update.race_context;
+                entity_to_sync.drift = update.update.drift;
+                entity_to_sync.boost = update.update.boost;
             } else {
                 var pre = prefab.get(update.update.prefab);
                 pre.transform = update.update.transform;
                 pre.kinetic = update.update.kinetic;
                 pre.race_context = update.update.race_context;
+                pre.drift = update.update.drift;
+                pre.boost = update.update.boost;
                 const entity_id = ecs.spawn(pre);
                 self.player_map.put(self.allocator, update.id, entity_id) catch unreachable;
             }
@@ -233,6 +237,8 @@ pub const GameClient = struct {
             .race_context = player.race_context.?,
             .transform = player.transform.?,
             .prefab = player.prefab.?,
+            .boost = player.boost.?,
+            .drift = player.drift.?,
         };
         const packet = shared.Packet.init(.update, udptp.serialize_payload(&buffer, update) catch unreachable) catch unreachable;
         const data = packet.serialize(self.allocator) catch unreachable;

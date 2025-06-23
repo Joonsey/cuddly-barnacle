@@ -131,6 +131,7 @@ const Gamestate = struct {
         tank.kinetic = .{ .velocity = .{ .x = 0, .y = 0 } };
         tank.controller = .{};
         tank.drift = .{};
+        tank.boost = .{};
         tank.race_context = .{};
         const player_id = self.ecs.spawn(tank);
         self.inventory.set_player(player_id);
@@ -139,10 +140,9 @@ const Gamestate = struct {
     pub fn use_item(self: *Self) void {
         if (self.inventory.item) |item| switch (item) {
             .Boost => {
-                if (self.ecs.get_mut(self.inventory.player_id).drift) |*drift| {
-                    const turbo = entity.DriftState.BoostStage.Turbo;
-                    drift.state = .{ .boosting = turbo };
-                    drift.boost_time = entity.DriftState.BoostStage.get_boost_time(turbo);
+                if (self.ecs.get_mut(self.inventory.player_id).boost) |*boost| {
+                    const turbo = entity.DriftStage.Turbo;
+                    boost.boost_time = entity.DriftStage.get_boost_time(turbo);
                 }
             },
         };
@@ -352,6 +352,7 @@ pub fn main() !void {
     state.client.start();
     state.client.update_rooms();
 
+    // need to heap allocate these, i think. TODO though
     state.ecs.register_observer(.{ .callback = &Particles.on_event, .context = &state.particles });
     state.ecs.register_observer(.{ .callback = &inventory.on_event, .context = &state.inventory });
 
