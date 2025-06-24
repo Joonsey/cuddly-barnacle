@@ -7,7 +7,7 @@ const to_fixed = @import("util.zig").to_fixed;
 
 pub const MAX_PLAYERS = 12;
 pub const MIN_PLAYERS = 2;
-pub const MAX_LAPS: usize = 3;
+pub const MAX_LAPS: usize = 1;
 pub const SERVER_PORT = 8080;
 pub const MATCHMAKING_PORT = 8469;
 pub const LOCALHOST_IP = .{ 127, 0, 0, 1 };
@@ -60,6 +60,7 @@ pub const PacketType = enum(u32) {
     sync,
     lobby_sync,
     server_state_changed,
+    finished,
 };
 
 pub const Packet = udptp.Packet(.{ .T = PacketType, .magic_bytes = 0x13800818 });
@@ -131,6 +132,11 @@ pub const State = enum(u8) {
     Starting,
     Playing,
     Finishing,
+};
+
+pub const Finish = extern struct {
+    id: PlayerId,
+    time: i64,
 };
 
 pub const ServerState = extern struct {

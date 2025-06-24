@@ -3,6 +3,7 @@ const renderer = @import("renderer.zig");
 const prefab = @import("prefabs.zig");
 const rl = @import("raylib");
 const level = @import("level.zig");
+const shared = @import("shared.zig");
 const Camera = renderer.Camera;
 const Renderable = renderer.Renderable;
 
@@ -404,7 +405,7 @@ pub const ECS = struct {
                             race_context.checkpoint = 0;
                             race_context.lap += 1;
 
-                            if (race_context.lap >= 3) {
+                            if (race_context.lap == shared.MAX_LAPS) {
                                 self.events.append(self.allocator, .{ .Finish = .{ .placement = 0, .entity = @intCast(i) } }) catch unreachable;
                             } else {
                                 self.events.append(self.allocator, .{ .CompleteLap = .{ .placement = 0, .entity = @intCast(i) } }) catch unreachable;

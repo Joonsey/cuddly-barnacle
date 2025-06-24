@@ -41,8 +41,9 @@ const Inventory = struct {
     pub fn generate_item(self: *Self, eligible_items: []prefab.Item) void {
         if (self.item) |_| return;
         std.debug.assert(eligible_items.len > 0);
-        const chosen = self.random.intRangeAtMost(usize, 0, eligible_items.len - 1);
-        self.item = eligible_items[chosen];
+        // this randomly crashes, no idea why
+        // const chosen = self.random.intRangeAtMost(usize, 0, eligible_items.len - 1);
+        self.item = eligible_items[0];
     }
 
     pub fn draw(self: Self) void {
@@ -94,7 +95,7 @@ const Gamestate = struct {
     tracks: *Tracks,
     particles: *Particles,
     inventory: *Inventory,
-    client: client.GameClient,
+    client: *client.GameClient,
 
     state: State,
     start_time: i64 = 0,
@@ -118,11 +119,15 @@ const Gamestate = struct {
         const inventory = try allocator.create(Inventory);
         inventory.* = .init(allocator, 2728989);
 
+        const cli = try allocator.create(client.GameClient);
+        cli.* = .init(allocator);
+
         const ecs = try allocator.create(entity.ECS);
         ecs.* = .init(allocator);
 
         ecs.register_observer(.{ .callback = &Particles.on_event, .context = particles });
         ecs.register_observer(.{ .callback = &Inventory.on_event, .context = inventory });
+        ecs.register_observer(.{ .callback = &client.GameClient.on_event, .context = cli });
 
         return .{
             .ecs = ecs,
@@ -131,7 +136,7 @@ const Gamestate = struct {
             .tracks = tracks,
             .particles = particles,
             .inventory = inventory,
-            .client = .init(allocator),
+            .client = cli,
 
             .state = .Browsing,
 
@@ -190,6 +195,7 @@ const Gamestate = struct {
         // lifetime shold be maintained in ecs. via a .reset()
         self.ecs.register_observer(.{ .callback = &Particles.on_event, .context = self.particles });
         self.ecs.register_observer(.{ .callback = &Inventory.on_event, .context = self.inventory });
+        self.ecs.register_observer(.{ .callback = &client.GameClient.on_event, .context = self.client });
 
         self.tracks.deinit();
         self.tracks.* = Tracks.init(self.allocator) catch unreachable;
@@ -198,6 +204,8 @@ const Gamestate = struct {
         self.particles.* = Particles.init(self.allocator);
 
         self.client.player_map.clearRetainingCapacity();
+        self.client.ctx.players_who_have_completed.clearRetainingCapacity();
+        self.client.is_finished = false;
     }
 
     fn change_state(self: *Self, new_state: State) void {
@@ -221,7 +229,6 @@ const Gamestate = struct {
                         for (0..self.client.ctx.ready_check.len) |i| {
                             const player = self.client.ctx.ready_check[i];
                             if (player.id == self.client.ctx.own_player_id) {
-                                std.log.err("spawn player at idx {d}", .{i});
                                 self.spawn_player(i);
                             }
                         }
@@ -269,6 +276,12 @@ const Gamestate = struct {
                     .online => {
                         self.client.send_player_update(player.*);
                         self.client.sync(self.ecs);
+
+                        switch (self.client.ctx.server_state.state) {
+                            .Lobby => self.change_state(.Lobby),
+                            .Finishing => if (std.time.milliTimestamp() > self.client.ctx.server_state.ctx.time) self.change_state(.Lobby),
+                            else => {},
+                        }
                     },
                     .offline => {},
                 }
@@ -307,6 +320,7 @@ const Gamestate = struct {
 
                 if (rl.isKeyPressed(.h)) {
                     self.change_state(.{ .Playing = .offline });
+                    self.start_time = std.time.milliTimestamp();
                 }
                 self.client.ctx.lock.unlockShared();
             },
@@ -335,7 +349,7 @@ const Gamestate = struct {
 
     pub fn draw(self: Self) void {
         switch (self.state) {
-            .Playing => {
+            .Playing => |playing| {
                 self.level.draw(self.camera);
                 self.tracks.draw(self.camera);
                 self.particles.draw(self.camera);
@@ -349,13 +363,40 @@ const Gamestate = struct {
                     rl.drawText(rl.textFormat("%.1f", .{delta_seconds}), 102, 102, 30, .black);
                     rl.drawText(rl.textFormat("%.1f", .{delta_seconds}), 100, 100, 30, .white);
                 }
-                const player = self.ecs.get(self.inventory.player_id);
-                const lap = player.race_context.?.lap + 1;
 
-                const text = rl.textFormat("%d/%d", .{ lap, shared.MAX_LAPS });
-                const text_width = rl.measureText(text, 30);
-                rl.drawText(text, RENDER_WIDTH - text_width + 2, 2, 30, .black);
-                rl.drawText(text, RENDER_WIDTH - text_width, 0, 30, .white);
+                if (self.client.is_finished) {
+                    for (self.client.ctx.players_who_have_completed.items, 1..) |finish, i| {
+                        const finish_time_f: f32 = @floatFromInt(finish.time - self.start_time);
+                        const font_size = 10;
+                        const text = rl.textFormat("%d - %.2f", .{ i, finish_time_f / 1000 });
+
+                        const i_i: i32 = @intCast(i);
+                        rl.drawText(text, RENDER_WIDTH / 2 - 30 + 1, 1 + font_size * i_i, font_size, .black);
+                        rl.drawText(text, RENDER_WIDTH / 2 - 30, font_size * i_i, font_size, .white);
+                    }
+                } else {
+                    const player = self.ecs.get(self.inventory.player_id);
+                    const lap = player.race_context.?.lap + 1;
+
+                    const text = rl.textFormat("%d/%d", .{ lap, shared.MAX_LAPS });
+                    const text_width = rl.measureText(text, 30);
+                    rl.drawText(text, RENDER_WIDTH - text_width + 2, 2, 30, .black);
+                    rl.drawText(text, RENDER_WIDTH - text_width, 0, 30, .white);
+                }
+
+                if (playing == .online) {
+                    if (self.client.ctx.server_state.state == .Finishing) {
+                        const time_to_end = self.client.ctx.server_state.ctx.time - std.time.milliTimestamp();
+                        const time_to_end_f: f32 = @floatFromInt(time_to_end);
+
+                        const font_size = 10;
+                        const text = rl.textFormat("%.2f until we are going back", .{time_to_end_f / 1000});
+                        const text_width = rl.measureText(text, font_size);
+
+                        rl.drawText(text, RENDER_WIDTH - text_width + 1, 1 + RENDER_HEIGHT - font_size, font_size, .black);
+                        rl.drawText(text, RENDER_WIDTH - text_width, RENDER_HEIGHT - font_size, font_size, .white);
+                    }
+                }
             },
             .Browsing => {
                 self.client.ctx.lock.lockShared();

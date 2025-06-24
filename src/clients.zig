@@ -18,6 +18,7 @@ const GameClientContext = struct {
     own_player_id: shared.PlayerId = 0,
 
     rooms: std.ArrayListUnmanaged(shared.Room),
+    players_who_have_completed: std.ArrayListUnmanaged(shared.Finish) = .{},
 
     lock: std.Thread.RwLock,
 
@@ -96,6 +97,10 @@ fn handle_packet(self: *GameClientType, data: []const u8, sender: udptp.network.
         .server_state_changed => {
             self.ctx.server_state = udptp.deserialize_payload(packet.payload, shared.ServerState) catch unreachable;
         },
+        .finished => {
+            const finish = udptp.deserialize_payload(packet.payload, shared.Finish) catch unreachable;
+            if (finish.id != ctx.own_player_id) self.ctx.players_who_have_completed.append(self.allocator, finish) catch unreachable;
+        },
         else => {},
     }
 }
@@ -105,6 +110,8 @@ pub const GameClient = struct {
     ctx: *GameClientContext,
 
     player_map: std.AutoHashMapUnmanaged(shared.PlayerId, entity.EntityId),
+
+    is_finished: bool = false,
 
     client_thread: std.Thread,
     should_quit: bool = false,
@@ -125,6 +132,27 @@ pub const GameClient = struct {
 
             .client_thread = undefined,
         };
+    }
+
+    pub fn on_event(s: *anyopaque, ecs: *entity.ECS, event: entity.Event) void {
+        const self: *Self = @alignCast(@ptrCast(s));
+        _ = ecs;
+        switch (event) {
+            .Finish => |finish_event| {
+                _ = finish_event;
+                const finish: shared.Finish = .{ .id = self.ctx.own_player_id, .time = std.time.milliTimestamp() };
+                self.ctx.players_who_have_completed.append(self.allocator, finish) catch unreachable;
+                self.is_finished = true;
+
+                var buffer: [512]u8 = undefined;
+                const packet = shared.Packet.init(.finished, udptp.serialize_payload(&buffer, finish) catch unreachable) catch unreachable;
+                const data = packet.serialize(self.allocator) catch unreachable;
+                defer self.allocator.free(data);
+
+                self.client.send(data);
+            },
+            else => {},
+        }
     }
 
     fn listen(self: *Self) void {

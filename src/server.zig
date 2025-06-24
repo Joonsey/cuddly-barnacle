@@ -15,8 +15,10 @@ const GameServerContext = struct {
     players: std.AutoHashMapUnmanaged(udptp.network.EndPoint, Player),
     updates: [shared.MAX_PLAYERS]shared.SyncPacket,
     ready_check: [shared.MAX_PLAYERS]shared.LobbySync,
+    finished: [shared.MAX_PLAYERS]shared.Finish,
     state: shared.ServerState,
     update_count: u32 = 0,
+    finished_count: u32 = 0,
 
     allocator: std.mem.Allocator,
 
@@ -27,6 +29,7 @@ const GameServerContext = struct {
             .players = .{},
             .updates = std.mem.zeroes([shared.MAX_PLAYERS]shared.SyncPacket),
             .ready_check = std.mem.zeroes([shared.MAX_PLAYERS]shared.LobbySync),
+            .finished = std.mem.zeroes([shared.MAX_PLAYERS]shared.Finish),
             .state = .{ .state = .Lobby, .ctx = .{ .time = 0 } },
             .allocator = allocator,
         };
@@ -117,6 +120,17 @@ pub fn handle_packet_cb(self: *GameServerType, data: []const u8, sender: udptp.n
                 ctx.ready_check[player.index] = .{ .id = player.id, .update = payload };
             }
         },
+        .finished => {
+            if (self.ctx.state.state == .Playing) {
+                var iter = ctx.players.iterator();
+                while (iter.next()) |player| {
+                    self.send_to(player.key_ptr.*, data);
+                }
+
+                self.ctx.finished[self.ctx.finished_count] = try udptp.deserialize_payload(packet.payload, shared.Finish);
+                self.ctx.finished_count += 1;
+            }
+        },
         else => {},
     }
 
@@ -196,7 +210,14 @@ pub const GameServer = struct {
                     self.ctx.state.ctx.time = timestamp + std.time.ms_per_s * 5;
                 }
             },
-            .Playing, .Finishing => {},
+            .Playing => {
+                if (self.ctx.finished_count >= 1) {
+                    self.ctx.state.state = .Finishing;
+                    self.ctx.state.ctx.time = timestamp + std.time.ms_per_s * 20;
+
+                    self.ctx.finished_count = 0;
+                }
+            },
             .Starting => {
                 if (self.ctx.num_players != number_of_ready_players or self.ctx.num_players < shared.MIN_PLAYERS) {
                     self.ctx.state.state = .Lobby;
@@ -204,12 +225,18 @@ pub const GameServer = struct {
                     self.ctx.state.state = .Playing;
                 }
             },
+            .Finishing => {
+                if (timestamp >= self.ctx.state.ctx.time) {
+                    self.ctx.state.state = .Lobby;
+                }
+            },
         }
 
         if (previous_state == self.ctx.state.state) return;
         switch (self.ctx.state.state) {
             .Lobby => self.alert_host("GAME2"),
-            .Playing, .Finishing, .Starting => {},
+            .Finishing => self.ctx.state.ctx.time = std.time.milliTimestamp() + std.time.ms_per_s * 20,
+            .Playing, .Starting => {},
         }
 
         var buffer: [1024]u8 = undefined;
