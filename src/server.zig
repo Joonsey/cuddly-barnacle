@@ -244,9 +244,7 @@ pub const GameServer = struct {
                     cleanup_dead_clients(self);
                 },
                 .Playing, .Finishing => if (self.ctx.num_players > 0) {
-                    if (self.ctx.update_count % 50 == 0) {
-                        self.sync_players();
-                    }
+                    self.sync_players();
                 },
             }
             self.update_state();

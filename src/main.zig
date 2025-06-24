@@ -81,8 +81,11 @@ const inventory = struct {
     }
 };
 
-const State = enum {
-    Playing,
+const State = union(enum) {
+    Playing: enum {
+        offline,
+        online,
+    },
     Browsing,
     Lobby,
 };
@@ -174,24 +177,31 @@ const Gamestate = struct {
     }
 
     fn change_state(self: *Self, new_state: State) void {
-        if (self.state == new_state) return;
+        if (std.meta.activeTag(self.state) == std.meta.activeTag(new_state)) return;
 
         switch (new_state) {
             .Lobby => {
                 self.selector = 0;
                 self.ready = false;
             },
-            .Playing => {
+            .Playing => |playing| {
                 self.selector = 0;
                 self.ready = false;
                 self.reset();
                 self.level.load_ecs(&self.ecs);
-                for (0..self.client.ctx.ready_check.len) |i| {
-                    const player = self.client.ctx.ready_check[i];
-                    if (player.id == self.client.ctx.own_player_id) {
-                        std.log.err("spawn player at idx {d}", .{i});
-                        self.spawn_player(i);
-                    }
+                switch (playing) {
+                    .offline => {
+                        self.spawn_player(0);
+                    },
+                    .online => {
+                        for (0..self.client.ctx.ready_check.len) |i| {
+                            const player = self.client.ctx.ready_check[i];
+                            if (player.id == self.client.ctx.own_player_id) {
+                                std.log.err("spawn player at idx {d}", .{i});
+                                self.spawn_player(i);
+                            }
+                        }
+                    },
                 }
             },
             .Browsing => {
@@ -219,7 +229,7 @@ const Gamestate = struct {
     pub fn update(self: *Self, deltatime: f32) void {
         self.frame_count += 1;
         switch (self.state) {
-            .Playing => {
+            .Playing => |playing| {
                 self.ecs.update(deltatime, self.level);
                 self.level.update_intermediate_texture(self.camera);
                 self.tracks.update(&self.ecs);
@@ -230,8 +240,14 @@ const Gamestate = struct {
                 // TODO
                 const player = self.ecs.get_mut(self.inventory.player_id);
                 player.controller = if (self.has_started()) .{} else null;
-                self.client.send_player_update(player.*);
-                self.client.sync(&self.ecs);
+
+                switch (playing) {
+                    .online => {
+                        self.client.send_player_update(player.*);
+                        self.client.sync(&self.ecs);
+                    },
+                    .offline => {},
+                }
 
                 const transform = player.transform.?;
                 var kinetics = player.kinetic.?;
@@ -264,6 +280,10 @@ const Gamestate = struct {
                         self.change_state(.Lobby);
                     }
                 }
+
+                if (rl.isKeyPressed(.h)) {
+                    self.change_state(.{ .Playing = .offline });
+                }
                 self.client.ctx.lock.unlockShared();
             },
             .Lobby => {
@@ -276,7 +296,7 @@ const Gamestate = struct {
                         // self.level = self.determine_level();
                     },
                     .Playing => {
-                        self.change_state(.Playing);
+                        self.change_state(.{ .Playing = .online });
                         self.start_time = server_state.ctx.time + std.time.ms_per_s * 5;
                     },
                     else => {},

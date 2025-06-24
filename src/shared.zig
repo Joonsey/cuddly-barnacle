@@ -10,13 +10,16 @@ pub const MIN_PLAYERS = 2;
 pub const SERVER_PORT = 8080;
 pub const MATCHMAKING_PORT = 8469;
 pub const LOCALHOST_IP = .{ 127, 0, 0, 1 };
+pub const PUBLIC_IP = .{ 84, 215, 22, 166 };
 
 pub const SCOPE = to_fixed("zigkartracing", 32);
 
 pub const PlayerId = u32;
 
+const builtin = @import("builtin");
+
 pub const MatchmakingEndpoint: udptp.network.EndPoint = .{
-    .address = .{ .ipv4 = .{ .value = LOCALHOST_IP } },
+    .address = .{ .ipv4 = .{ .value = if (builtin.mode == .Debug) LOCALHOST_IP else PUBLIC_IP } },
     .port = MATCHMAKING_PORT,
 };
 
