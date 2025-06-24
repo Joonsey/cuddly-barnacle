@@ -19,12 +19,8 @@ var WINDOW_HEIGHT: i32 = 900;
 const RENDER_WIDTH: i32 = 360;
 const RENDER_HEIGHT: i32 = 240;
 
-const Items = enum(u8) {
-    Boost,
-};
-
 const Inventory = struct {
-    item: ?Items,
+    item: ?prefab.Item,
     random: std.Random,
 
     player_id: entity.EntityId,
@@ -42,7 +38,7 @@ const Inventory = struct {
         };
     }
 
-    pub fn generate_item(self: *Self, eligible_items: []Items) void {
+    pub fn generate_item(self: *Self, eligible_items: []prefab.Item) void {
         if (self.item) |_| return;
         std.debug.assert(eligible_items.len > 0);
         const chosen = self.random.intRangeAtMost(usize, 0, eligible_items.len - 1);
@@ -50,8 +46,9 @@ const Inventory = struct {
     }
 
     pub fn draw(self: Self) void {
-        const text: [:0]const u8 = if (self.item) |item| @tagName(item) else comptime "none";
-        rl.drawText(text, 0, 32, 20, .white);
+        if (self.item) |item| {
+            prefab.get_item(item).drawEx(.init(0, 0), 0, 2, .white);
+        }
     }
 
     pub fn set_player(self: *Self, new_player_id: entity.EntityId) void {
@@ -65,8 +62,8 @@ const Inventory = struct {
                 const a = ecs.get(col.a);
                 const b = ecs.get(col.b);
                 if (a.archetype == .ItemBox and col.b == self.player_id or b.archetype == .ItemBox and col.a == self.player_id) {
-                    var eligible_items: std.ArrayListUnmanaged(Items) = .{};
-                    eligible_items.append(self.allocator, Items.Boost) catch unreachable;
+                    var eligible_items: std.ArrayListUnmanaged(prefab.Item) = .{};
+                    eligible_items.append(self.allocator, prefab.Item.boost) catch unreachable;
                     self.generate_item(eligible_items.items);
                     eligible_items.deinit(self.allocator);
                 }
@@ -157,7 +154,7 @@ const Gamestate = struct {
 
     pub fn use_item(self: *Self) void {
         if (self.inventory.item) |item| switch (item) {
-            .Boost => {
+            .boost => {
                 if (self.ecs.get_mut(self.inventory.player_id).boost) |*boost| {
                     const turbo = entity.DriftStage.Turbo;
                     boost.boost_time = entity.DriftStage.get_boost_time(turbo);
@@ -352,6 +349,13 @@ const Gamestate = struct {
                     rl.drawText(rl.textFormat("%.1f", .{delta_seconds}), 102, 102, 30, .black);
                     rl.drawText(rl.textFormat("%.1f", .{delta_seconds}), 100, 100, 30, .white);
                 }
+                const player = self.ecs.get(self.inventory.player_id);
+                const lap = player.race_context.?.lap + 1;
+
+                const text = rl.textFormat("%d/%d", .{ lap, shared.MAX_LAPS });
+                const text_width = rl.measureText(text, 30);
+                rl.drawText(text, RENDER_WIDTH - text_width + 2, 2, 30, .black);
+                rl.drawText(text, RENDER_WIDTH - text_width, 0, 30, .white);
             },
             .Browsing => {
                 self.client.ctx.lock.lockShared();

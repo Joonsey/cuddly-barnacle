@@ -7,6 +7,7 @@ const to_fixed = @import("util.zig").to_fixed;
 
 pub const MAX_PLAYERS = 12;
 pub const MIN_PLAYERS = 2;
+pub const MAX_LAPS: usize = 3;
 pub const SERVER_PORT = 8080;
 pub const MATCHMAKING_PORT = 8469;
 pub const LOCALHOST_IP = .{ 127, 0, 0, 1 };
