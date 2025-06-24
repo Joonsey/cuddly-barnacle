@@ -410,10 +410,16 @@ const Gamestate = struct {
             .Lobby => {
                 self.client.ctx.lock.lockShared();
                 const ready_status = self.client.ctx.ready_check[0..self.client.ctx.num_players];
-                for (0..ready_status.len) |i| {
-                    const status = ready_status[i];
-                    const ready = if (status.id == self.client.ctx.own_player_id) self.ready else status.update.ready;
-                    rl.drawText(rl.textFormat("%b", .{ready}), 100, 32 + 20 * @as(i32, @intCast(i)), 20, .white);
+                for (0..shared.MAX_PLAYERS) |i| {
+                    if (i < ready_status.len) {
+                        const status = ready_status[i];
+                        const ready = if (status.id == self.client.ctx.own_player_id) self.ready else status.update.ready;
+                        const texture = if (ready) prefab.get_ui(.ready) else prefab.get_ui(.notready);
+                        texture.draw(20, 1 + 20 * @as(i32, @intCast(i)), .white);
+                    } else {
+                        const texture = prefab.get_ui(.unoccupied);
+                        texture.draw(20, 1 + 20 * @as(i32, @intCast(i)), .white);
+                    }
                 }
                 self.client.ctx.lock.unlockShared();
             },

@@ -29,6 +29,11 @@ pub fn init(allocator: std.mem.Allocator) !void {
 
     // init icons
     try items.put(allocator, .boost, try rl.loadTexture("assets/ui/icons/boost.png"));
+
+    // UI elements
+    try ui.put(allocator, .notready, try rl.loadTexture("assets/ui/lobby/notready.png"));
+    try ui.put(allocator, .ready, try rl.loadTexture("assets/ui/lobby/ready.png"));
+    try ui.put(allocator, .unoccupied, try rl.loadTexture("assets/ui/lobby/unoccupied.png"));
 }
 
 pub fn deinit(allocator: std.mem.Allocator) void {
@@ -76,8 +81,19 @@ pub const Item = enum(u8) {
     boost,
 };
 
+pub const UI = enum(u8) {
+    ready,
+    notready,
+    unoccupied,
+};
+
 pub fn get_item(item: Item) rl.Texture {
     return items.get(item) orelse unreachable;
 }
 
+pub fn get_ui(_ui: UI) rl.Texture {
+    return ui.get(_ui) orelse unreachable;
+}
+
 var items: std.AutoHashMapUnmanaged(Item, rl.Texture) = .{};
+var ui: std.AutoHashMapUnmanaged(UI, rl.Texture) = .{};
