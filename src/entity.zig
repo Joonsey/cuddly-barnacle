@@ -137,6 +137,10 @@ pub const Boost = extern struct {
     boost_time: f32 = 0,
 };
 
+pub const NameTag = extern struct {
+    name: [16]u8,
+};
+
 pub const Kinetic = extern struct {
     velocity: rl.Vector2,
     friction: f32 = 0.8,

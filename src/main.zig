@@ -14,8 +14,8 @@ const client = @import("clients.zig");
 const util = @import("util.zig");
 const shared = @import("shared.zig");
 
-var WINDOW_WIDTH: i32 = 1600;
-var WINDOW_HEIGHT: i32 = 900;
+var WINDOW_WIDTH: i32 = 1540;
+var WINDOW_HEIGHT: i32 = 860;
 const RENDER_WIDTH: i32 = 360;
 const RENDER_HEIGHT: i32 = 240;
 
@@ -104,6 +104,9 @@ const Gamestate = struct {
     ready: bool = false,
     frame_count: u32 = 0,
 
+    name: [16]u8 = undefined,
+    selected_prefab: prefab.Prefab = .car_base,
+
     server: ?server.GameServer = null,
     room: ?client.Room = null,
 
@@ -144,8 +147,24 @@ const Gamestate = struct {
         };
     }
 
+    fn draw_background(self: Self) void {
+        _ = self;
+        const size = 16;
+        for (0..RENDER_WIDTH / size + 2) |u_x| {
+            for (0..RENDER_HEIGHT / size + 1) |u_y| {
+                const x: i32 = @intCast(u_x);
+                const y: i32 = @intCast(u_y);
+                const offset: i32 = @intFromFloat(@mod(rl.getTime() * size, size));
+                const dark_gray = rl.Color.init(23, 23, 25, 255);
+                const very_dark_gray = rl.Color.init(5, 3, 3, 255);
+
+                rl.drawRectangle(x * size - offset, y * size - offset, size, size, if (@mod(x + y, 2) == 0) very_dark_gray else dark_gray);
+            }
+        }
+    }
+
     pub fn spawn_player(self: *Self, spawn_index: usize) void {
-        var tank = prefab.get(.car_base);
+        var tank = prefab.get(self.selected_prefab);
         tank.transform.?.position = self.level.finish.get_spawn(1 + spawn_index);
         tank.transform.?.rotation = self.level.finish.get_direction();
         tank.kinetic = .{ .velocity = .{ .x = 0, .y = 0 } };
@@ -326,7 +345,7 @@ const Gamestate = struct {
             },
             .Lobby => {
                 if (rl.isKeyPressed(.r)) self.ready = !self.ready;
-                self.client.send_lobby_update(.{ .ready = self.ready });
+                self.client.send_lobby_update(.{ .ready = self.ready, .name = self.name });
 
                 const server_state = self.client.ctx.server_state;
                 switch (server_state.state) {
@@ -399,6 +418,7 @@ const Gamestate = struct {
                 }
             },
             .Browsing => {
+                self.draw_background();
                 self.client.ctx.lock.lockShared();
                 const rooms = self.client.get_rooms();
                 for (0..rooms.len) |i| {
@@ -408,6 +428,7 @@ const Gamestate = struct {
                 self.client.ctx.lock.unlockShared();
             },
             .Lobby => {
+                self.draw_background();
                 self.client.ctx.lock.lockShared();
                 const ready_status = self.client.ctx.ready_check[0..self.client.ctx.num_players];
                 for (0..shared.MAX_PLAYERS) |i| {
@@ -416,12 +437,24 @@ const Gamestate = struct {
                         const ready = if (status.id == self.client.ctx.own_player_id) self.ready else status.update.ready;
                         const texture = if (ready) prefab.get_ui(.ready) else prefab.get_ui(.notready);
                         texture.draw(20, 1 + 20 * @as(i32, @intCast(i)), .white);
+
+                        var name = status.update.name;
+                        rl.drawText(rl.textFormat("%.16s", .{&name}), 20 + 16, 1 + 3 + 20 * @as(i32, @intCast(i)), 10, .white);
                     } else {
                         const texture = prefab.get_ui(.unoccupied);
                         texture.draw(20, 1 + 20 * @as(i32, @intCast(i)), .white);
                     }
                 }
+
+                const server_state = self.client.ctx.server_state;
+                if (server_state.state == .Starting) {
+                    const time_left = server_state.ctx.time - std.time.milliTimestamp();
+                    const time_left_f: f32 = @floatFromInt(time_left);
+                    rl.drawText(rl.textFormat("starting in %.1fs", .{time_left_f / 1000}), RENDER_WIDTH / 2 + 20, RENDER_HEIGHT - 10, 10, .white);
+                }
                 self.client.ctx.lock.unlockShared();
+
+                prefab.get(self.selected_prefab).renderable.?.Stacked.draw_raw(.init(RENDER_WIDTH - 30, RENDER_HEIGHT - 30), @floatCast(rl.getTime()));
             },
         }
     }
@@ -446,6 +479,7 @@ pub fn main() !void {
 
     const random_network_id = std.crypto.random.int(u32);
     state.client.ctx.own_player_id = random_network_id; // network id, not entity id
+    state.name = util.to_fixed("Jae", 16);
 
     state.client.start();
     state.client.update_rooms();

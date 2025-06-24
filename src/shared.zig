@@ -125,6 +125,7 @@ pub const LobbySync = extern struct {
 pub const LobbyUpdate = extern struct {
     ready: bool,
     vote: usize = 0,
+    name: [16]u8,
 };
 
 pub const State = enum(u8) {

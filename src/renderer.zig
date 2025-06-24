@@ -152,4 +152,22 @@ pub const Stacked = struct {
             );
         }
     }
+
+    pub fn draw_raw(self: Self, pos: rl.Vector2, rotation: f32) void {
+        const texture = self.texture;
+        const width = texture.width;
+        const rows: usize = @intCast(@divTrunc(texture.height, width));
+        const f_width: f32 = @floatFromInt(width);
+        for (0..rows) |i| {
+            const f_inverse_i: f32 = @floatFromInt(rows - (i + 1));
+            const f_i: f32 = @floatFromInt(i);
+            texture.drawPro(
+                .{ .x = 0, .y = f_inverse_i * f_width, .width = f_width, .height = f_width },
+                .{ .x = pos.x, .y = pos.y - f_i, .width = f_width, .height = f_width },
+                .{ .x = f_width / 2, .y = f_width / 2 },
+                std.math.radiansToDegrees(rotation),
+                self.color,
+            );
+        }
+    }
 };
