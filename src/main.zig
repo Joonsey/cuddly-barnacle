@@ -23,7 +23,7 @@ const Items = enum(u8) {
     Boost,
 };
 
-const inventory = struct {
+const Inventory = struct {
     item: ?Items,
     random: std.Random,
 
@@ -91,12 +91,12 @@ const State = union(enum) {
 };
 
 const Gamestate = struct {
-    ecs: entity.ECS,
+    ecs: *entity.ECS,
     level: Level,
     camera: renderer.Camera,
-    tracks: Tracks,
-    particles: Particles,
-    inventory: inventory,
+    tracks: *Tracks,
+    particles: *Particles,
+    inventory: *Inventory,
     client: client.GameClient,
 
     state: State,
@@ -112,13 +112,28 @@ const Gamestate = struct {
     allocator: std.mem.Allocator,
     const Self = @This();
     pub fn init(allocator: std.mem.Allocator, comptime lvl_path: []const u8) !Self {
+        const tracks = try allocator.create(Tracks);
+        tracks.* = try .init(allocator);
+
+        const particles = try allocator.create(Particles);
+        particles.* = .init(allocator);
+
+        const inventory = try allocator.create(Inventory);
+        inventory.* = .init(allocator, 2728989);
+
+        const ecs = try allocator.create(entity.ECS);
+        ecs.* = .init(allocator);
+
+        ecs.register_observer(.{ .callback = &Particles.on_event, .context = particles });
+        ecs.register_observer(.{ .callback = &Inventory.on_event, .context = inventory });
+
         return .{
-            .ecs = .init(allocator),
+            .ecs = ecs,
             .level = try .init(lvl_path, allocator),
             .camera = .init(RENDER_WIDTH, RENDER_HEIGHT),
-            .tracks = try .init(allocator),
-            .particles = .init(allocator),
-            .inventory = .init(allocator, 289289),
+            .tracks = tracks,
+            .particles = particles,
+            .inventory = inventory,
             .client = .init(allocator),
 
             .state = .Browsing,
@@ -155,23 +170,35 @@ const Gamestate = struct {
 
     pub fn deinit(self: *Self) void {
         self.ecs.deinit();
+        self.allocator.destroy(self.ecs);
+
         self.level.deinit(self.allocator);
         self.tracks.deinit();
+        self.allocator.destroy(self.tracks);
+
         self.particles.deinit();
+        self.allocator.destroy(self.particles);
+
         self.inventory.deinit();
+        self.allocator.destroy(self.inventory);
+
         self.client.deinit();
         if (self.server) |*s| s.deinit();
     }
 
     pub fn reset(self: *Self) void {
         self.ecs.deinit();
-        self.ecs = .init(self.allocator);
+        self.ecs.* = .init(self.allocator);
+
+        // lifetime shold be maintained in ecs. via a .reset()
+        self.ecs.register_observer(.{ .callback = &Particles.on_event, .context = self.particles });
+        self.ecs.register_observer(.{ .callback = &Inventory.on_event, .context = self.inventory });
 
         self.tracks.deinit();
-        self.tracks = Tracks.init(self.allocator) catch unreachable;
+        self.tracks.* = Tracks.init(self.allocator) catch unreachable;
 
         self.particles.deinit();
-        self.particles = Particles.init(self.allocator);
+        self.particles.* = Particles.init(self.allocator);
 
         self.client.player_map.clearRetainingCapacity();
     }
@@ -188,7 +215,7 @@ const Gamestate = struct {
                 self.selector = 0;
                 self.ready = false;
                 self.reset();
-                self.level.load_ecs(&self.ecs);
+                self.level.load_ecs(self.ecs);
                 switch (playing) {
                     .offline => {
                         self.spawn_player(0);
@@ -232,8 +259,8 @@ const Gamestate = struct {
             .Playing => |playing| {
                 self.ecs.update(deltatime, self.level);
                 self.level.update_intermediate_texture(self.camera);
-                self.tracks.update(&self.ecs);
-                self.particles.update(deltatime, self.ecs);
+                self.tracks.update(self.ecs);
+                self.particles.update(deltatime, self.ecs.*);
 
                 if (rl.isKeyPressed(.j)) self.use_item();
 
@@ -244,7 +271,7 @@ const Gamestate = struct {
                 switch (playing) {
                     .online => {
                         self.client.send_player_update(player.*);
-                        self.client.sync(&self.ecs);
+                        self.client.sync(self.ecs);
                     },
                     .offline => {},
                 }
@@ -371,10 +398,6 @@ pub fn main() !void {
 
     state.client.start();
     state.client.update_rooms();
-
-    // need to heap allocate these, i think. TODO though
-    state.ecs.register_observer(.{ .callback = &Particles.on_event, .context = &state.particles });
-    state.ecs.register_observer(.{ .callback = &inventory.on_event, .context = &state.inventory });
 
     const scene = try rl.loadRenderTexture(RENDER_WIDTH, RENDER_HEIGHT);
 
