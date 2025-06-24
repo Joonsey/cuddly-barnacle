@@ -37,20 +37,22 @@ pub const Tracks = struct {
     pub fn update(self: *Self, ecs: *entity.ECS) void {
         for (ecs.entities.items, 0..) |e, i| {
             if (e.drift) |drift| {
-                if (e.transform) |transform| {
-                    if (drift.is_drifting) {
-                        const index: usize = self.indexes.get(@intCast(i)) orelse blk: {
-                            self.indexes.put(self.allocator, @intCast(i), 0) catch unreachable;
-                            break :blk 0;
-                        };
-                        const query: Query = .{ .index = index, .entity = @intCast(i) };
-                        var tracks: std.ArrayListUnmanaged(Track) = self.tracks.get(query) orelse .{};
-                        tracks.append(self.allocator, .{ .position = transform.position, .rotation = transform.rotation }) catch unreachable;
-                        self.tracks.put(self.allocator, query, tracks) catch unreachable;
-                    } else {
-                        if (self.indexes.getPtr(@intCast(i))) |index| {
-                            const query: Query = .{ .index = index.*, .entity = @intCast(i) };
-                            if (self.tracks.get(query)) |_| index.* += 1;
+                if (e.boost) |boost| {
+                    if (e.transform) |transform| {
+                        if (transform.height == 0 and (drift.is_drifting or boost.boost_time > 0)) {
+                            const index: usize = self.indexes.get(@intCast(i)) orelse blk: {
+                                self.indexes.put(self.allocator, @intCast(i), 0) catch unreachable;
+                                break :blk 0;
+                            };
+                            const query: Query = .{ .index = index, .entity = @intCast(i) };
+                            var tracks: std.ArrayListUnmanaged(Track) = self.tracks.get(query) orelse .{};
+                            tracks.append(self.allocator, .{ .position = transform.position, .rotation = transform.rotation }) catch unreachable;
+                            self.tracks.put(self.allocator, query, tracks) catch unreachable;
+                        } else {
+                            if (self.indexes.getPtr(@intCast(i))) |index| {
+                                const query: Query = .{ .index = index.*, .entity = @intCast(i) };
+                                if (self.tracks.get(query)) |_| index.* += 1;
+                            }
                         }
                     }
                 }
@@ -63,7 +65,7 @@ pub const Tracks = struct {
         var left: std.ArrayListUnmanaged(rl.Vector2) = .{};
         var right: std.ArrayListUnmanaged(rl.Vector2) = .{};
 
-        const car_radius = 7;
+        const car_radius = 5;
         while (iter.next()) |tracks| {
             for (tracks.items) |track| {
                 const forward = rl.Vector2{ .x = @cos(track.rotation), .y = @sin(track.rotation) };
