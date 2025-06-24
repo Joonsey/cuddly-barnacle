@@ -16,8 +16,8 @@ const shared = @import("shared.zig");
 
 var WINDOW_WIDTH: i32 = 1600;
 var WINDOW_HEIGHT: i32 = 900;
-const RENDER_WIDTH: i32 = 720;
-const RENDER_HEIGHT: i32 = 480;
+const RENDER_WIDTH: i32 = 360;
+const RENDER_HEIGHT: i32 = 240;
 
 const Items = enum(u8) {
     Boost,
@@ -143,7 +143,7 @@ const Gamestate = struct {
     }
 
     pub fn spawn_player(self: *Self, spawn_index: usize) void {
-        var tank = prefab.get(.tank);
+        var tank = prefab.get(.car_base);
         tank.transform.?.position = self.level.finish.get_spawn(1 + spawn_index);
         tank.transform.?.rotation = self.level.finish.get_direction();
         tank.kinetic = .{ .velocity = .{ .x = 0, .y = 0 } };
@@ -285,7 +285,7 @@ const Gamestate = struct {
 
                 self.camera.target(transform.position);
                 const delta = transform.rotation + std.math.pi * 0.5 - self.camera.rotation;
-                self.camera.rotation += delta / 24;
+                self.camera.rotation += delta / 120;
             },
             .Browsing => {
                 self.client.update_rooms();

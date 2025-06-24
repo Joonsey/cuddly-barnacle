@@ -208,7 +208,7 @@ pub const GameClient = struct {
 
             // bandaid fix
             if (update.id == 0) continue;
-            if (update.update.prefab != .tank) continue;
+            if (update.update.prefab != .car_base) continue;
 
             if (self.player_map.get(update.id)) |entity_id| {
                 const entity_to_sync = ecs.get_mut(entity_id);
