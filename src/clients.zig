@@ -77,29 +77,27 @@ fn handle_packet(self: *GameClientType, data: []const u8, sender: udptp.network.
 
             // potential memory desync here
             ctx.lock.lockShared();
-            var arr: std.ArrayListUnmanaged(Room) = .{};
+            self.ctx.rooms.clearRetainingCapacity();
             for (0..c) |i| {
                 const room = try udptp.deserialize_payload(packet.payload[i * payload_individual_size .. (i + 1) * payload_individual_size], shared.Room);
-                try arr.append(self.allocator, room);
+                try self.ctx.rooms.append(self.allocator, room);
             }
-            self.ctx.rooms.deinit(self.ctx.allocator);
-            self.ctx.rooms = arr;
             ctx.lock.unlockShared();
         },
         .ack => {
             var buffer: [512]u8 = undefined;
-            const response_packet = shared.Packet.init(.ack, udptp.serialize_payload(&buffer, shared.AckPacket{ .id = ctx.own_player_id }) catch unreachable) catch unreachable;
-            const response_data = response_packet.serialize(self.allocator) catch unreachable;
+            const response_packet = try shared.Packet.init(.ack, try udptp.serialize_payload(&buffer, shared.AckPacket{ .id = ctx.own_player_id }));
+            const response_data = try response_packet.serialize(self.allocator);
             defer self.allocator.free(response_data);
 
             self.send(response_data);
         },
         .server_state_changed => {
-            self.ctx.server_state = udptp.deserialize_payload(packet.payload, shared.ServerState) catch unreachable;
+            self.ctx.server_state = try udptp.deserialize_payload(packet.payload, shared.ServerState);
         },
         .finished => {
-            const finish = udptp.deserialize_payload(packet.payload, shared.Finish) catch unreachable;
-            if (finish.id != ctx.own_player_id) self.ctx.players_who_have_completed.append(self.allocator, finish) catch unreachable;
+            const finish = try udptp.deserialize_payload(packet.payload, shared.Finish);
+            if (finish.id != ctx.own_player_id) try self.ctx.players_who_have_completed.append(self.allocator, finish);
         },
         else => {},
     }
@@ -205,18 +203,17 @@ pub const GameClient = struct {
     }
 
     pub fn join_room(self: *Self, room: shared.Room) void {
-        self.join(room.name, room.ip, room.port);
-    }
-
-    pub fn join(self: *Self, room_name: [32]u8, ip: [4]u8, port: u16) void {
         var buffer: [512]u8 = undefined;
-        const mm_packet = shared.Packet.init(.join, udptp.serialize_payload(&buffer, shared.JoinPayload{ .scope = shared.SCOPE, .key = room_name }) catch unreachable) catch unreachable;
+        const mm_packet = shared.Packet.init(.join, udptp.serialize_payload(&buffer, shared.JoinPayload{ .scope = shared.SCOPE, .key = room.name }) catch unreachable) catch unreachable;
         const mm_data = mm_packet.serialize(self.allocator) catch unreachable;
         defer self.allocator.free(mm_data);
 
         self.send_mm(mm_data);
+        self.join(room.ip, room.port);
+    }
 
-        @memset(&buffer, 0);
+    pub fn join(self: *Self, ip: [4]u8, port: u16) void {
+        var buffer: [512]u8 = undefined;
         const packet = shared.Packet.init(.ack, udptp.serialize_payload(&buffer, shared.AckPacket{ .id = self.ctx.own_player_id }) catch unreachable) catch unreachable;
         const data = packet.serialize(self.allocator) catch unreachable;
         defer self.allocator.free(data);

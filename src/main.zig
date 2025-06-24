@@ -317,7 +317,7 @@ const Gamestate = struct {
                 self.camera.rotation += delta / 120;
             },
             .Browsing => {
-                self.client.update_rooms();
+                if (self.frame_count % 140 == 0) self.client.update_rooms();
                 self.client.ctx.lock.lockShared();
                 const rooms = self.client.get_rooms();
                 if (rl.isKeyPressed(.t) and rooms.len > 0) {
@@ -332,7 +332,7 @@ const Gamestate = struct {
                     self.server = .init(self.allocator);
                     if (self.server) |*s| {
                         s.start();
-                        self.client.join(util.to_fixed("GAME1", 32), shared.LOCALHOST_IP, shared.SERVER_PORT);
+                        self.client.join(shared.LOCALHOST_IP, shared.SERVER_PORT);
                         self.change_state(.Lobby);
                     }
                 }
@@ -423,7 +423,7 @@ const Gamestate = struct {
                 const rooms = self.client.get_rooms();
                 for (0..rooms.len) |i| {
                     const room = rooms[i];
-                    rl.drawText(rl.textFormat("%s", .{&room.name}), 100, 32 + 20 * @as(i32, @intCast(i)), 20, if (self.selector == i) .yellow else .white);
+                    rl.drawText(rl.textFormat("%6.6s %d/%d", .{ &room.name, room.users, room.capacity }), 100, 32 + 20 * @as(i32, @intCast(i)), 10, if (self.selector == i) .yellow else .white);
                 }
                 self.client.ctx.lock.unlockShared();
             },
