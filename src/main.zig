@@ -227,6 +227,9 @@ const Gamestate = struct {
         self.client.player_map.clearRetainingCapacity();
         self.client.ctx.players_who_have_completed.clearRetainingCapacity();
         self.client.is_finished = false;
+
+        self.camera.rotation = 0;
+        self.inventory.item = null;
     }
 
     fn change_state(self: *Self, new_state: State) void {
@@ -537,7 +540,7 @@ pub fn main() !void {
     try level.init(allocator);
     defer level.deinit(allocator);
 
-    var state: Gamestate = try .init(allocator, level.get(0));
+    var state: Gamestate = try .init(allocator, level.get(1));
     defer state.deinit();
 
     const random_network_id = std.crypto.random.int(u32);
