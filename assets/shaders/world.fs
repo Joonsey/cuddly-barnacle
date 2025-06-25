@@ -13,7 +13,7 @@ uniform float u_camera_offset_y;
 
 uniform float u_time;
 
-const int STACK_HEIGHT = 16; // number of vertical samples
+const int STACK_HEIGHT = 8; // number of vertical samples
 
 bool is_black(vec4 color) {
     return color.r == 0.0 && color.g == 0.0 && color.b == 0.0;

@@ -504,7 +504,7 @@ pub fn main() !void {
     try prefab.init(allocator);
     defer prefab.deinit(allocator);
 
-    var state: Gamestate = try .init(allocator, Levels.level_one);
+    var state: Gamestate = try .init(allocator, Levels.level_two);
     defer state.deinit();
 
     const random_network_id = std.crypto.random.int(u32);

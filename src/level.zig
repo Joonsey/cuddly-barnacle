@@ -6,6 +6,7 @@ const prefab = @import("prefabs.zig");
 
 pub const Levels = struct {
     pub const level_one: []const u8 = "level1";
+    pub const level_two: []const u8 = "level2";
 };
 
 const Metadata = struct {

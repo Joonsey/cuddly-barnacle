@@ -5,6 +5,7 @@ const renderer = @import("renderer.zig");
 
 pub const Prefab = enum(u8) {
     cube,
+    brick,
     tank,
     itembox,
     car_base,
@@ -23,9 +24,12 @@ fn reg(comptime pre: Prefab, allocator: std.mem.Allocator, e: entity.Entity) !vo
 pub fn init(allocator: std.mem.Allocator) !void {
     // init prefabs
     try reg(.cube, allocator, .{ .archetype = .Wall, .collision = .{ .x = 0, .y = 0, .width = 40, .height = 40 }, .transform = .{ .position = .{ .x = 0, .y = 0 } }, .renderable = .{ .Stacked = try .init("assets/cube.png") } });
+    try reg(.brick, allocator, .{ .archetype = .Wall, .collision = .{ .x = 0, .y = 0, .width = 14, .height = 14 }, .transform = .{ .position = .{ .x = 0, .y = 0 } }, .renderable = .{ .Stacked = try .init("assets/brick.png") } });
+
     try reg(.tank, allocator, .{ .archetype = .Car, .collision = .{ .x = 0, .y = 0, .width = 18, .height = 18 }, .transform = .{ .position = .{ .x = 0, .y = 0 } }, .renderable = .{ .Stacked = try .init("assets/tank.png") }, .shadow = .{ .radius = 9 } });
-    try reg(.itembox, allocator, .{ .archetype = .ItemBox, .collision = .{ .x = 0, .y = 0, .width = 16, .height = 16 }, .transform = .{ .position = .{ .x = 0, .y = 0 } }, .renderable = .{ .Stacked = try .init("assets/itembox.png") }, .shadow = .{ .radius = 8 } });
     try reg(.car_base, allocator, .{ .archetype = .Car, .collision = .{ .x = 0, .y = 0, .width = 16, .height = 16 }, .transform = .{ .position = .{ .x = 0, .y = 0 } }, .renderable = .{ .Stacked = try .init("assets/car_base.png") }, .shadow = .{ .radius = 8 } });
+
+    try reg(.itembox, allocator, .{ .archetype = .ItemBox, .collision = .{ .x = 0, .y = 0, .width = 16, .height = 16 }, .transform = .{ .position = .{ .x = 0, .y = 0 } }, .renderable = .{ .Stacked = try .init("assets/itembox.png") }, .shadow = .{ .radius = 8 } });
 
     // init icons
     try items.put(allocator, .boost, try rl.loadTexture("assets/ui/icons/boost.png"));

@@ -13,8 +13,8 @@ const prefab = @import("prefabs.zig");
 
 var WINDOW_WIDTH: f32 = 1600;
 var WINDOW_HEIGHT: f32 = 900;
-const RENDER_WIDTH: f32 = 720;
-const RENDER_HEIGHT: f32 = 480;
+const RENDER_WIDTH: f32 = 360;
+const RENDER_HEIGHT: f32 = 240;
 
 fn handle_input(camera: *renderer.Camera) void {
     const forward: rl.Vector2 = .{
@@ -226,7 +226,7 @@ pub fn main() !void {
 
     var selected: Selected = .{ .Entity = prefab.get(.cube) };
 
-    var level: Level = try .init(Levels.level_one, allocator);
+    var level: Level = try .init(Levels.level_two, allocator);
     defer level.deinit(allocator);
     level.load_ecs(&ecs);
 
@@ -254,7 +254,7 @@ pub fn main() !void {
 
         if (rl.isKeyPressed(.z) and (rl.isKeyDown(.left_control))) if (state.add_stack.pop()) |id| state.ecs.despawn(id);
         if (rl.isKeyPressed(.r) and (rl.isKeyDown(.left_control))) {
-            try level.save(state.ecs.entities.items, state.level.checkpoints, state.level.finish, allocator, Levels.level_one);
+            try level.save(state.ecs.entities.items, state.level.checkpoints, state.level.finish, allocator, Levels.level_two);
             std.log.debug("SAVED!", .{});
         }
 
