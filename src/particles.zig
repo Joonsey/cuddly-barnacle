@@ -110,7 +110,6 @@ pub const Particles = struct {
         const side_velocity = 12;
         for (ecs.entities.items) |e| {
             if (e.transform) |transform| {
-                if (transform.height != 0) continue;
                 const forward = rl.Vector2{ .x = @cos(transform.rotation), .y = @sin(transform.rotation) };
                 const perp = rl.Vector2{ .x = -forward.y, .y = forward.x };
 
@@ -118,30 +117,6 @@ pub const Particles = struct {
                 const dir = side.scale(side_velocity).subtract(forward.scale(back_velocity));
 
                 const pos = transform.position.add(side.scale(3));
-
-                if (e.kinetic) |kinetic| {
-                    const length = kinetic.velocity.length();
-                    if (length == 0) continue;
-                    if (self.particle_index % 4 == 0) {
-                        self.particles.append(self.allocator, Particle{
-                            .position = pos,
-                            .velocity = dir.scale(0.7),
-                            .lifetime = 1,
-                            .color = .brown,
-                            .kind = .{ .Rectangle = .{ .x = 2, .y = 2 } },
-                            .rotation = transform.rotation,
-                        }) catch unreachable;
-                    } else {
-                        self.particles.append(self.allocator, Particle{
-                            .position = pos,
-                            .velocity = dir.scale(0.7),
-                            .lifetime = 1,
-                            .color = .dark_brown,
-                            .kind = .{ .Rectangle = .{ .x = 2, .y = 2 } },
-                            .rotation = transform.rotation,
-                        }) catch unreachable;
-                    }
-                }
                 if (e.boost) |boost| {
                     if (boost.boost_time > 0) {
                         self.particles.append(self.allocator, Particle{
@@ -187,6 +162,31 @@ pub const Particles = struct {
                                 .rotation = transform.rotation,
                             }) catch unreachable;
                         }
+                    }
+                }
+                if (transform.height != 0) continue;
+
+                if (e.kinetic) |kinetic| {
+                    const length = kinetic.velocity.length();
+                    if (length == 0) continue;
+                    if (self.particle_index % 4 == 0) {
+                        self.particles.append(self.allocator, Particle{
+                            .position = pos,
+                            .velocity = dir.scale(0.7),
+                            .lifetime = 1,
+                            .color = .brown,
+                            .kind = .{ .Rectangle = .{ .x = 2, .y = 2 } },
+                            .rotation = transform.rotation,
+                        }) catch unreachable;
+                    } else {
+                        self.particles.append(self.allocator, Particle{
+                            .position = pos,
+                            .velocity = dir.scale(0.7),
+                            .lifetime = 1,
+                            .color = .dark_brown,
+                            .kind = .{ .Rectangle = .{ .x = 2, .y = 2 } },
+                            .rotation = transform.rotation,
+                        }) catch unreachable;
                     }
                 }
                 if (e.drift) |drift| {

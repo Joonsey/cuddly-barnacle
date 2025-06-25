@@ -23,9 +23,12 @@ pub const Traction = enum {
     Track,
     Offroad,
     Slippery,
+    Void,
 
     pub fn from_pixel(clr: rl.Color) Traction {
         if (color_equal(clr, .white)) return .Track;
+        if (color_equal(clr, .black)) return .Void;
+        if (color_equal(clr, .blue)) return .Slippery;
         return .Offroad;
     }
 
@@ -34,6 +37,7 @@ pub const Traction = enum {
             .Track => 0.8,
             .Offroad => 0.2,
             .Slippery => 0.99,
+            .Void => 0,
         };
     }
 
@@ -42,6 +46,7 @@ pub const Traction = enum {
             .Track => 1.2,
             .Offroad => 0.6,
             .Slippery => 1.0,
+            .Void => 1.0,
         };
     }
 };

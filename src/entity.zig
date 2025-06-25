@@ -25,15 +25,16 @@ pub const Controller = struct {
         const current_speed = kinetic.velocity.length();
 
         const accel = acceleration * 1;
+        const is_grounded = transform.height == 0;
 
-        if (rl.isKeyDown(.w)) {
+        if (is_grounded and rl.isKeyDown(.w)) {
             if (current_speed < max_speed) {
                 kinetic.velocity.x += accel * forward.x;
                 kinetic.velocity.y += accel * forward.y;
             }
         }
 
-        if (rl.isKeyDown(.s)) {
+        if (is_grounded and rl.isKeyDown(.s)) {
             if (current_speed > -max_speed * 0.5) {
                 kinetic.velocity.x -= accel * forward.x;
                 kinetic.velocity.y -= accel * forward.y;
@@ -43,7 +44,7 @@ pub const Controller = struct {
         const base_rotation_speed = kinetic.velocity.length() / max_speed * deltatime;
 
         if (drift.is_drifting) {
-            if (drift.direction == 0 and transform.height == 0) {
+            if (drift.direction == 0 and is_grounded) {
                 drift.stage = .none;
                 drift.is_drifting = false;
                 drift.charge_time = 0;
@@ -62,7 +63,7 @@ pub const Controller = struct {
                 drift.stage = .none;
             }
         } else {
-            if (rl.isKeyPressed(.h) and transform.height == 0) {
+            if (rl.isKeyPressed(.h) and is_grounded) {
                 drift.is_drifting = true;
                 transform.height += 8;
 
@@ -145,7 +146,7 @@ pub const Kinetic = extern struct {
     velocity: rl.Vector2,
     friction: f32 = 0.8,
     speed_multiplier: f32 = 1,
-    weight: f32 = 20,
+    weight: f32 = 40,
 };
 
 pub const Archetype = enum {
@@ -261,6 +262,10 @@ pub const Event = union(enum) {
         placement: usize,
         entity: EntityId,
     },
+    Voided: struct {
+        entity: EntityId,
+        position: rl.Vector2,
+    },
     Boosting: struct {
         // maybe level of boost?? more things?
         entity: EntityId,
@@ -328,6 +333,9 @@ pub const ECS = struct {
                 .Boosting => |boost| {
                     _ = boost;
                 },
+                .Voided => |voided| {
+                    _ = voided;
+                },
             }
         }
 
@@ -354,6 +362,25 @@ pub const ECS = struct {
                 var position = transform.position;
                 if (entity.kinetic) |*kinetic| {
                     transform.height = @max(transform.height - (kinetic.weight * deltatime), 0);
+                    if (transform.height == 0 and lvl.get_traction(transform.position) == .Void) {
+                        self.events.append(self.allocator, .{ .Voided = .{ .entity = @intCast(i), .position = transform.position } }) catch unreachable;
+                        if (entity.race_context) |rc| {
+                            position = lvl.checkpoints[rc.checkpoint].position;
+                            transform.height = 50;
+                            kinetic.velocity = .init(0, 0);
+                            if (entity.boost) |*boost| boost.boost_time = 0;
+                            if (entity.drift) |*drift| {
+                                drift.charge_time = 0;
+                                drift.is_drifting = false;
+                                drift.direction = 0;
+                            }
+
+                            const next = lvl.checkpoints[rc.checkpoint + 1 % lvl.checkpoints.len];
+                            const rotation = std.math.atan2(next.position.y - position.y, next.position.x - position.x);
+                            transform.rotation = rotation;
+                        }
+                    }
+
                     if (entity.collision) |*collision| {
                         const sample_pos = position.add(kinetic.velocity.scale(deltatime).scale(kinetic.speed_multiplier));
                         collision.x = sample_pos.x - collision.width / 2;
@@ -397,8 +424,13 @@ pub const ECS = struct {
                         position = position.add(kinetic.velocity.scale(deltatime).scale(kinetic.speed_multiplier));
                     }
 
-                    kinetic.velocity.x *= kinetic.friction * deltatime;
-                    kinetic.velocity.y *= kinetic.friction * deltatime;
+                    if (transform.height == 0) {
+                        kinetic.velocity.x *= kinetic.friction * deltatime;
+                        kinetic.velocity.y *= kinetic.friction * deltatime;
+                    } else if (entity.boost) |boost| if (boost.boost_time > 0) {
+                        kinetic.velocity.x *= kinetic.friction * deltatime;
+                        kinetic.velocity.y *= kinetic.friction * deltatime;
+                    };
                 }
 
                 transform.position = position;
