@@ -207,13 +207,13 @@ pub const GameServer = struct {
             .Lobby => {
                 if (self.ctx.num_players == number_of_ready_players and self.ctx.num_players >= shared.MIN_PLAYERS) {
                     self.ctx.state.state = .Starting;
-                    self.ctx.state.ctx.time = timestamp + std.time.ms_per_s * 5;
+                    self.ctx.state.ctx.time = timestamp + std.time.ms_per_s * shared.TIME_TO_START_ALL_READY_S;
                 }
             },
             .Playing => {
                 if (self.ctx.finished_count >= 1) {
                     self.ctx.state.state = .Finishing;
-                    self.ctx.state.ctx.time = timestamp + std.time.ms_per_s * 20;
+                    self.ctx.state.ctx.time = timestamp + std.time.ms_per_s * shared.TIME_TO_FINISH_S;
 
                     self.ctx.finished_count = 0;
                 }
@@ -228,6 +228,9 @@ pub const GameServer = struct {
             .Finishing => {
                 if (timestamp >= self.ctx.state.ctx.time) {
                     self.ctx.state.state = .Lobby;
+                    for (0..self.ctx.ready_check.len) |i| {
+                        self.ctx.ready_check[i].update.ready = false;
+                    }
                 }
             },
         }
@@ -235,7 +238,7 @@ pub const GameServer = struct {
         if (previous_state == self.ctx.state.state) return;
         switch (self.ctx.state.state) {
             .Lobby => self.alert_host("GAME2"),
-            .Finishing => self.ctx.state.ctx.time = std.time.milliTimestamp() + std.time.ms_per_s * 20,
+            .Finishing => self.ctx.state.ctx.time = std.time.milliTimestamp() + std.time.ms_per_s * shared.TIME_TO_FINISH_S,
             .Playing, .Starting => {},
         }
 

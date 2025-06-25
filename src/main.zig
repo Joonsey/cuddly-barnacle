@@ -104,6 +104,8 @@ const Gamestate = struct {
     ready: bool = false,
     frame_count: u32 = 0,
 
+    show_leaderboard: bool = false,
+
     name: [16]u8 = undefined,
     selected_prefab: prefab.Prefab = .car_base,
 
@@ -172,6 +174,7 @@ const Gamestate = struct {
         tank.drift = .{};
         tank.boost = .{};
         tank.race_context = .{};
+        tank.name_tag = .{ .name = self.name };
         const player_id = self.ecs.spawn(tank);
         self.inventory.set_player(player_id);
     }
@@ -312,6 +315,8 @@ const Gamestate = struct {
                 kinetics.speed_multiplier = traction.speed_multiplier();
                 kinetics.friction = traction.friction();
 
+                self.show_leaderboard = rl.isKeyDown(.tab);
+
                 self.camera.target(transform.position);
                 const delta = transform.rotation + std.math.pi * 0.5 - self.camera.rotation;
                 self.camera.rotation += delta / 120;
@@ -354,11 +359,41 @@ const Gamestate = struct {
                     },
                     .Playing => {
                         self.change_state(.{ .Playing = .online });
-                        self.start_time = server_state.ctx.time + std.time.ms_per_s * 5;
+                        self.start_time = server_state.ctx.time + std.time.ms_per_s * shared.TIME_TO_START_RACING_S;
                     },
                     else => {},
                 }
+
+                self.show_leaderboard = rl.isKeyDown(.tab);
             },
+        }
+    }
+
+    fn draw_leaderboard(self: Self, start_x: i32) void {
+        for (self.client.ctx.players_who_have_completed.items, 1..) |finish, i| {
+            const finish_time_f: f32 = @floatFromInt(finish.time - self.start_time);
+            const font_size = 10;
+            const maybe_entity_id = self.client.player_map.get(finish.id);
+            const name = blk: {
+                if (finish.id == self.client.ctx.own_player_id) break :blk self.name;
+                if (maybe_entity_id) |entity_id| if (self.ecs.get(entity_id).name_tag) |tag| break :blk tag.name;
+                break :blk util.to_fixed("????", 16);
+            };
+            const text = rl.textFormat("%16.16s %.1f", .{ &name, finish_time_f / 1000 });
+
+            const i_i: i32 = @intCast(i);
+            const texture = prefab.get_ui(prefab.UI.get_placement(i));
+            const delta_time = std.time.milliTimestamp() - finish.time;
+            if (delta_time >= shared.LEADERBOARD_ENTER_TIME_MS) {
+                texture.draw(start_x, texture.height * i_i, .white);
+                rl.drawText(text, start_x + 16, texture.height * i_i + 1, font_size, .white);
+            } else {
+                const delta_time_f: f32 = @floatFromInt(delta_time);
+                const lerped_x_f: f32 = std.math.lerp(@as(f32, @floatFromInt(RENDER_WIDTH)), @as(f32, @floatFromInt(start_x)), delta_time_f / shared.LEADERBOARD_ENTER_TIME_MS);
+                const lerped_x: i32 = @intFromFloat(lerped_x_f);
+                texture.draw(lerped_x, texture.height * i_i, .white);
+                rl.drawText(text, lerped_x + 16, texture.height * i_i + 1, font_size, .white);
+            }
         }
     }
 
@@ -383,16 +418,8 @@ const Gamestate = struct {
                     rl.drawText(rl.textFormat("%.1f", .{delta_seconds}), 100, 100, 30, .white);
                 }
 
-                if (self.client.is_finished) {
-                    for (self.client.ctx.players_who_have_completed.items, 1..) |finish, i| {
-                        const finish_time_f: f32 = @floatFromInt(finish.time - self.start_time);
-                        const font_size = 10;
-                        const text = rl.textFormat("%d - %.2f", .{ i, finish_time_f / 1000 });
-
-                        const i_i: i32 = @intCast(i);
-                        rl.drawText(text, RENDER_WIDTH / 2 - 30 + 1, 1 + font_size * i_i, font_size, .black);
-                        rl.drawText(text, RENDER_WIDTH / 2 - 30, font_size * i_i, font_size, .white);
-                    }
+                if (self.client.is_finished or self.show_leaderboard) {
+                    self.draw_leaderboard(RENDER_WIDTH / 2 - 64);
                 } else {
                     const player = self.ecs.get(self.inventory.player_id);
                     const lap = player.race_context.?.lap + 1;
@@ -452,7 +479,10 @@ const Gamestate = struct {
                     const time_left_f: f32 = @floatFromInt(time_left);
                     rl.drawText(rl.textFormat("starting in %.1fs", .{time_left_f / 1000}), RENDER_WIDTH / 2 + 20, RENDER_HEIGHT - 10, 10, .white);
                 }
+
                 self.client.ctx.lock.unlockShared();
+
+                if (self.show_leaderboard) self.draw_leaderboard(RENDER_WIDTH / 2 - 64);
 
                 prefab.get(self.selected_prefab).renderable.?.Stacked.draw_raw(.init(RENDER_WIDTH - 30, RENDER_HEIGHT - 30), @floatCast(rl.getTime()));
             },

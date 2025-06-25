@@ -34,6 +34,20 @@ pub fn init(allocator: std.mem.Allocator) !void {
     try ui.put(allocator, .notready, try rl.loadTexture("assets/ui/lobby/notready.png"));
     try ui.put(allocator, .ready, try rl.loadTexture("assets/ui/lobby/ready.png"));
     try ui.put(allocator, .unoccupied, try rl.loadTexture("assets/ui/lobby/unoccupied.png"));
+
+    try ui.put(allocator, .placement_base, try rl.loadTexture("assets/ui/lobby/placement/base.png"));
+    try ui.put(allocator, .first, try rl.loadTexture("assets/ui/lobby/placement/1st.png"));
+    try ui.put(allocator, .second, try rl.loadTexture("assets/ui/lobby/placement/2nd.png"));
+    try ui.put(allocator, .third, try rl.loadTexture("assets/ui/lobby/placement/3rd.png"));
+    try ui.put(allocator, .fourth, try rl.loadTexture("assets/ui/lobby/placement/4th.png"));
+    try ui.put(allocator, .fifth, try rl.loadTexture("assets/ui/lobby/placement/5th.png"));
+    try ui.put(allocator, .sixth, try rl.loadTexture("assets/ui/lobby/placement/6th.png"));
+    try ui.put(allocator, .seventh, try rl.loadTexture("assets/ui/lobby/placement/7th.png"));
+    try ui.put(allocator, .eight, try rl.loadTexture("assets/ui/lobby/placement/8th.png"));
+    try ui.put(allocator, .ninth, try rl.loadTexture("assets/ui/lobby/placement/9th.png"));
+    try ui.put(allocator, .tenth, try rl.loadTexture("assets/ui/lobby/placement/10th.png"));
+    try ui.put(allocator, .eleventh, try rl.loadTexture("assets/ui/lobby/placement/11th.png"));
+    try ui.put(allocator, .twelveth, try rl.loadTexture("assets/ui/lobby/placement/12th.png"));
 }
 
 pub fn deinit(allocator: std.mem.Allocator) void {
@@ -85,6 +99,37 @@ pub const UI = enum(u8) {
     ready,
     notready,
     unoccupied,
+    placement_base,
+    first,
+    second,
+    third,
+    fourth,
+    fifth,
+    sixth,
+    seventh,
+    eight,
+    ninth,
+    tenth,
+    eleventh,
+    twelveth,
+
+    pub fn get_placement(placement: usize) UI {
+        return switch (placement) {
+            1 => .first,
+            2 => .second,
+            3 => .third,
+            4 => .fourth,
+            5 => .fifth,
+            6 => .sixth,
+            7 => .seventh,
+            8 => .eight,
+            9 => .ninth,
+            10 => .tenth,
+            11 => .eleventh,
+            12 => .twelveth,
+            else => .placement_base,
+        };
+    }
 };
 
 pub fn get_item(item: Item) rl.Texture {

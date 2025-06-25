@@ -13,6 +13,15 @@ pub const MATCHMAKING_PORT = 8469;
 pub const LOCALHOST_IP = .{ 127, 0, 0, 1 };
 pub const PUBLIC_IP = .{ 84, 215, 22, 166 };
 
+pub const TIME_TO_FINISH_S = 20;
+/// after everyone has readied up
+pub const TIME_TO_START_ALL_READY_S = 5;
+/// after everyone has loaded in
+pub const TIME_TO_START_RACING_S = 5;
+
+/// fading in form the right side of the screen
+pub const LEADERBOARD_ENTER_TIME_MS = 350;
+
 pub const SCOPE = to_fixed("zigkartracing", 32);
 
 pub const PlayerId = u32;
@@ -35,6 +44,7 @@ pub const UpdatePacket = extern struct {
     prefab: entity.Prefab,
     drift: entity.Drift,
     boost: entity.Boost,
+    name_tag: entity.NameTag,
 };
 
 pub const SyncPacket = extern struct {

@@ -194,6 +194,7 @@ pub const Entity = struct {
     drift: ?Drift = null,
     boost: ?Boost = null,
     timer: ?Timer = null,
+    name_tag: ?NameTag = null,
 
     const Self = @This();
     pub fn update(self: *Self, deltatime: f32) ?Event {
@@ -319,7 +320,7 @@ pub const ECS = struct {
                     }
                 },
                 .Finish => |fin| {
-                    std.log.err("{any}", .{fin});
+                    _ = fin;
                 },
                 .CompleteLap => |cmp| {
                     _ = cmp;
