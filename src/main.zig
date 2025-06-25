@@ -3,8 +3,7 @@ const rl = @import("raylib");
 
 const renderer = @import("renderer.zig");
 const entity = @import("entity.zig");
-const Level = @import("level.zig").Level;
-const Levels = @import("level.zig").Levels;
+const level = @import("level.zig");
 
 const prefab = @import("prefabs.zig");
 const Tracks = @import("tracks.zig").Tracks;
@@ -90,7 +89,7 @@ const State = union(enum) {
 
 const Gamestate = struct {
     ecs: *entity.ECS,
-    level: Level,
+    level: level.Level,
     camera: renderer.Camera,
     tracks: *Tracks,
     particles: *Particles,
@@ -114,7 +113,7 @@ const Gamestate = struct {
 
     allocator: std.mem.Allocator,
     const Self = @This();
-    pub fn init(allocator: std.mem.Allocator, comptime lvl_path: []const u8) !Self {
+    pub fn init(allocator: std.mem.Allocator, lvl: level.Level) !Self {
         const tracks = try allocator.create(Tracks);
         tracks.* = try .init(allocator);
 
@@ -136,7 +135,7 @@ const Gamestate = struct {
 
         return .{
             .ecs = ecs,
-            .level = try .init(lvl_path, allocator),
+            .level = lvl,
             .camera = .init(RENDER_WIDTH, RENDER_HEIGHT),
             .tracks = tracks,
             .particles = particles,
@@ -350,12 +349,32 @@ const Gamestate = struct {
             },
             .Lobby => {
                 if (rl.isKeyPressed(.r)) self.ready = !self.ready;
-                self.client.send_lobby_update(.{ .ready = self.ready, .name = self.name });
+                self.client.send_lobby_update(.{ .ready = self.ready, .name = self.name, .vote = self.selector });
+
+                const levels = level.get_all();
+                if (!self.ready) {
+                    if (rl.isKeyPressed(.w)) self.selector = (self.selector + levels.len - 1) % levels.len;
+                    if (rl.isKeyPressed(.s)) self.selector = (self.selector + 1) % levels.len;
+                }
 
                 const server_state = self.client.ctx.server_state;
                 switch (server_state.state) {
                     .Starting => {
-                        // self.level = self.determine_level();
+                        var votes: [level.NUM_LEVELS]usize = std.mem.zeroes([level.NUM_LEVELS]usize);
+                        for (self.client.ctx.ready_check[0..self.client.ctx.num_players]) |rc| {
+                            votes[rc.update.vote] += 1;
+                        }
+
+                        var highest: usize = 0;
+                        var highest_level: usize = 0;
+                        for (votes, 0..) |vote, current_level| {
+                            if (vote > highest) {
+                                highest = vote;
+                                highest_level = current_level;
+                            }
+                        }
+
+                        self.level = level.get(highest_level);
                     },
                     .Playing => {
                         self.change_state(.{ .Playing = .online });
@@ -397,7 +416,7 @@ const Gamestate = struct {
         }
     }
 
-    fn determine_level(self: Self) Level {
+    fn determine_level(self: Self) level.Level {
         return self.level;
     }
 
@@ -463,7 +482,10 @@ const Gamestate = struct {
                         const status = ready_status[i];
                         const ready = if (status.id == self.client.ctx.own_player_id) self.ready else status.update.ready;
                         const texture = if (ready) prefab.get_ui(.ready) else prefab.get_ui(.notready);
-                        texture.draw(20, 1 + 20 * @as(i32, @intCast(i)), .white);
+                        const pos_x: i32 = 20;
+                        const pos_y: i32 = 1 + 20 * @as(i32, @intCast(i));
+                        if (ready) level.get(status.update.vote).icon.draw(pos_x, pos_y, .white);
+                        texture.draw(pos_x, pos_y, .white);
 
                         var name = status.update.name;
                         rl.drawText(rl.textFormat("%.16s", .{&name}), 20 + 16, 1 + 3 + 20 * @as(i32, @intCast(i)), 10, .white);
@@ -478,6 +500,14 @@ const Gamestate = struct {
                     const time_left = server_state.ctx.time - std.time.milliTimestamp();
                     const time_left_f: f32 = @floatFromInt(time_left);
                     rl.drawText(rl.textFormat("starting in %.1fs", .{time_left_f / 1000}), RENDER_WIDTH / 2 + 20, RENDER_HEIGHT - 10, 10, .white);
+                }
+
+                const levels = level.get_all();
+                for (levels, 0..) |lvl, i| {
+                    const pos_x: i32 = RENDER_WIDTH / 2 + 50;
+                    const pos_y: i32 = @intCast(16 * i);
+                    lvl.icon.draw(pos_x, pos_y, .white);
+                    if (i == self.selector) prefab.get_ui(.selected).draw(pos_x, pos_y, .white);
                 }
 
                 self.client.ctx.lock.unlockShared();
@@ -504,7 +534,10 @@ pub fn main() !void {
     try prefab.init(allocator);
     defer prefab.deinit(allocator);
 
-    var state: Gamestate = try .init(allocator, Levels.level_two);
+    try level.init(allocator);
+    defer level.deinit(allocator);
+
+    var state: Gamestate = try .init(allocator, level.get(0));
     defer state.deinit();
 
     const random_network_id = std.crypto.random.int(u32);

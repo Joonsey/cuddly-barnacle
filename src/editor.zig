@@ -3,8 +3,7 @@ const rl = @import("raylib");
 
 const renderer = @import("renderer.zig");
 const entity = @import("entity.zig");
-const Level = @import("level.zig").Level;
-const Levels = @import("level.zig").Levels;
+const level = @import("level.zig");
 const Checkpoint = @import("level.zig").Checkpoint;
 const Finish = @import("level.zig").Finish;
 const util = @import("util.zig");
@@ -198,7 +197,7 @@ fn inc(current: usize, delta: i32, max: usize) usize {
 const State = struct {
     allocator: std.mem.Allocator,
     add_stack: std.ArrayListUnmanaged(entity.EntityId),
-    level: Level,
+    level: level.Level,
     ecs: entity.ECS,
     iterator: prefab.Iterator,
 
@@ -224,24 +223,26 @@ pub fn main() !void {
     try prefab.init(allocator);
     defer prefab.deinit(allocator);
 
+    try level.init(allocator);
+    defer level.deinit(allocator);
+
     var selected: Selected = .{ .Entity = prefab.get(.cube) };
 
-    var level: Level = try .init(Levels.level_two, allocator);
-    defer level.deinit(allocator);
-    level.load_ecs(&ecs);
+    var lvl = level.get(0);
+    lvl.load_ecs(&ecs);
 
     const scene = try rl.loadRenderTexture(RENDER_WIDTH, RENDER_HEIGHT);
     var camera = renderer.Camera.init(RENDER_WIDTH, RENDER_HEIGHT);
 
     var checkpoints: std.ArrayListUnmanaged(Checkpoint) = .{};
     defer checkpoints.deinit(allocator);
-    try checkpoints.appendSlice(allocator, level.checkpoints);
+    try checkpoints.appendSlice(allocator, lvl.checkpoints);
 
     var state: State = .{
         .add_stack = add_stack,
         .allocator = allocator,
         .ecs = ecs,
-        .level = level,
+        .level = lvl,
         .iterator = prefab.iter(allocator),
     };
 
@@ -254,7 +255,7 @@ pub fn main() !void {
 
         if (rl.isKeyPressed(.z) and (rl.isKeyDown(.left_control))) if (state.add_stack.pop()) |id| state.ecs.despawn(id);
         if (rl.isKeyPressed(.r) and (rl.isKeyDown(.left_control))) {
-            try level.save(state.ecs.entities.items, state.level.checkpoints, state.level.finish, allocator, Levels.level_two);
+            try lvl.save(state.ecs.entities.items, state.level.checkpoints, state.level.finish, allocator, level.Levels.level_two);
             std.log.debug("SAVED!", .{});
         }
 
@@ -269,10 +270,10 @@ pub fn main() !void {
         state.ecs.update(deltatime, state.level);
         handle_input(&camera);
 
-        level.update_intermediate_texture(camera);
+        state.level.update_intermediate_texture(camera);
         scene.begin();
         rl.clearBackground(.black);
-        level.draw(camera);
+        state.level.draw(camera);
         state.ecs.draw(camera);
         selected.draw(camera);
         scene.end();

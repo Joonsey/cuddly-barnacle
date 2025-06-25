@@ -38,6 +38,7 @@ pub fn init(allocator: std.mem.Allocator) !void {
     try ui.put(allocator, .notready, try rl.loadTexture("assets/ui/lobby/notready.png"));
     try ui.put(allocator, .ready, try rl.loadTexture("assets/ui/lobby/ready.png"));
     try ui.put(allocator, .unoccupied, try rl.loadTexture("assets/ui/lobby/unoccupied.png"));
+    try ui.put(allocator, .selected, try rl.loadTexture("assets/ui/lobby/selected.png"));
 
     try ui.put(allocator, .placement_base, try rl.loadTexture("assets/ui/lobby/placement/base.png"));
     try ui.put(allocator, .first, try rl.loadTexture("assets/ui/lobby/placement/1st.png"));
@@ -103,6 +104,7 @@ pub const UI = enum(u8) {
     ready,
     notready,
     unoccupied,
+    selected,
     placement_base,
     first,
     second,

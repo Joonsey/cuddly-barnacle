@@ -9,6 +9,29 @@ pub const Levels = struct {
     pub const level_two: []const u8 = "level2";
 };
 
+pub const NUM_LEVELS = 2;
+
+const Map = std.ArrayListUnmanaged(Level);
+var map: Map = .{};
+
+pub fn init(allocator: std.mem.Allocator) !void {
+    try map.append(allocator, try .init(Levels.level_one, allocator));
+    try map.append(allocator, try .init(Levels.level_two, allocator));
+}
+
+pub fn deinit(allocator: std.mem.Allocator) void {
+    map.deinit(allocator);
+}
+
+pub fn get(idx: usize) Level {
+    std.debug.assert(idx < map.items.len);
+    return map.items[idx];
+}
+
+pub fn get_all() []Level {
+    return map.items;
+}
+
 const Metadata = struct {
     pub fn load(path: []const u8) !Metadata {
         _ = path;
@@ -124,6 +147,7 @@ pub const Level = struct {
     graphics_texture: rl.Texture,
     intermediate_texture: rl.RenderTexture,
     metadata: Metadata,
+    icon: rl.Texture,
 
     startup_entities: []entity.Entity,
     checkpoints: []Checkpoint,
@@ -140,10 +164,20 @@ pub const Level = struct {
     pub fn init(comptime directory: []const u8, allocator: std.mem.Allocator) !Self {
         const text = try rl.loadTexture(levels_path ++ directory ++ "/graphics.png");
 
-        return .{ .physics_image = try rl.loadImage(levels_path ++ directory ++ "/physics.png"), .graphics_texture = text, .intermediate_texture = try rl.loadRenderTexture(720, 480), .metadata = Metadata.load(levels_path ++ directory ++ "/metadata") catch .{}, .startup_entities = try load_entities_from_file(levels_path ++ directory ++ "/entities", allocator), .checkpoints = try load_checkpoints_from_file(levels_path ++ directory ++ "/checkpoints", allocator), .finish = try load_finish_from_file(levels_path ++ directory ++ "/finish", allocator), .shader = try rl.loadShader(
-            null,
-            "assets/shaders/world.fs",
-        ) };
+        return .{
+            .physics_image = try rl.loadImage(levels_path ++ directory ++ "/physics.png"),
+            .graphics_texture = text,
+            .intermediate_texture = try rl.loadRenderTexture(720, 480),
+            .metadata = Metadata.load(levels_path ++ directory ++ "/metadata") catch .{},
+            .startup_entities = try load_entities_from_file(levels_path ++ directory ++ "/entities", allocator),
+            .checkpoints = try load_checkpoints_from_file(levels_path ++ directory ++ "/checkpoints", allocator),
+            .finish = try load_finish_from_file(levels_path ++ directory ++ "/finish", allocator),
+            .icon = try rl.loadTexture(levels_path ++ directory ++ "/icon.png"),
+            .shader = try rl.loadShader(
+                null,
+                "assets/shaders/world.fs",
+            ),
+        };
     }
 
     pub fn load_ecs(self: Self, ecs: *entity.ECS) void {
