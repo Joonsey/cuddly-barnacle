@@ -16,8 +16,8 @@ const Map = std.ArrayListUnmanaged(Level);
 var map: Map = .{};
 
 pub fn init(allocator: std.mem.Allocator) !void {
-    try map.append(allocator, try .init(Levels.level_one, allocator));
-    try map.append(allocator, try .init(Levels.level_two, allocator));
+    try map.append(allocator, try .init(Levels.level_one, allocator, try rl.loadShader(null, "assets/shaders/world_water.fs")));
+    try map.append(allocator, try .init(Levels.level_two, allocator, try rl.loadShader(null, "assets/shaders/world_lava.fs")));
 }
 
 pub fn deinit(allocator: std.mem.Allocator) void {
@@ -162,7 +162,7 @@ pub const Level = struct {
 
     const Self = @This();
     const levels_path = "assets/levels/";
-    pub fn init(comptime directory: []const u8, allocator: std.mem.Allocator) !Self {
+    pub fn init(comptime directory: []const u8, allocator: std.mem.Allocator, shader: rl.Shader) !Self {
         const text = try rl.loadTexture(levels_path ++ directory ++ "/graphics.png");
 
         return .{
@@ -174,10 +174,7 @@ pub const Level = struct {
             .checkpoints = try load_checkpoints_from_file(levels_path ++ directory ++ "/checkpoints", allocator),
             .finish = try load_finish_from_file(levels_path ++ directory ++ "/finish", allocator),
             .icon = try rl.loadTexture(levels_path ++ directory ++ "/icon.png"),
-            .shader = try rl.loadShader(
-                null,
-                "assets/shaders/world.fs",
-            ),
+            .shader = shader,
         };
     }
 

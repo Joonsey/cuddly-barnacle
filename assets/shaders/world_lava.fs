@@ -21,7 +21,7 @@ const int STACK_HEIGHT = 8; // number of vertical samples for 3d effect
 
 // weird hashing magic
 float hash1(float n) {return fract(sin(n)*43758.77453); }
-vec2  hash2(vec2 p) {p = vec2(dot(p,vec2(127.1,311.7)), dot(p,vec2(269.5,183.3)) ); return fract(sin(p)*43758.5453); }
+vec2 hash2(vec2 p) {p = vec2(dot(p,vec2(127.1,311.7)), dot(p,vec2(269.5,183.3)) ); return fract(sin(p)*43758.5453); }
 
 float voronoi(in vec2 x, float w, float offset, float time) {
     vec2 n = floor(x);
@@ -44,8 +44,6 @@ float voronoi(in vec2 x, float w, float offset, float time) {
     }
 	return m;
 }
-
-
 
 bool is_black(vec4 color) {
     return color.r == 0.0 && color.g == 0.0 && color.b == 0.0;
