@@ -26,7 +26,7 @@ fn handle_input(camera: *renderer.Camera) void {
         .y = @sin(camera.rotation + std.math.pi * 0.5),
     };
 
-    const accel = 70;
+    const accel = 10;
     var position = camera.position;
     if (rl.isKeyDown(.d)) {
         position.x += accel * forward.x;
@@ -46,10 +46,10 @@ fn handle_input(camera: *renderer.Camera) void {
     }
 
     if (rl.isKeyDown(.q)) {
-        camera.rotation -= 0.1;
+        camera.rotation -= 0.05;
     }
     if (rl.isKeyDown(.e)) {
-        camera.rotation += 0.1;
+        camera.rotation += 0.05;
     }
 
     camera.target(position);
@@ -336,7 +336,7 @@ pub fn main() !void {
         .iterator = prefab.iter(allocator),
     };
 
-    rl.setTargetFPS(60);
+    rl.setTargetFPS(144);
     while (!rl.windowShouldClose()) {
         const deltatime = rl.getFrameTime();
         const cursor_pos = util.get_mouse_pos(RENDER_WIDTH, WINDOW_WIDTH, RENDER_HEIGHT, WINDOW_HEIGHT);
