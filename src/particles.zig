@@ -78,6 +78,22 @@ pub const Particles = struct {
                             .rotation = -angle,
                         }) catch unreachable;
                     }
+                } else if (a.archetype == .Car and b.archetype == .Car) {
+                    const a_transform = a.transform.?;
+                    const b_transform = b.transform.?;
+
+                    const delta = b_transform.position.subtract(a_transform.position);
+
+                    const normal = delta.normalize();
+                    const angle = std.math.atan2(delta.y, delta.x);
+                    self.particles.append(self.allocator, Particle{
+                        .position = a_transform.position.add(delta.scale(0.5)),
+                        .velocity = normal.scale(3),
+                        .lifetime = 1.4,
+                        .color = .white,
+                        .kind = .{ .Spark = .{ .scale = 3, .alt_color = .ray_white, .force = 2 } },
+                        .rotation = angle,
+                    }) catch unreachable;
                 }
             },
             else => {},

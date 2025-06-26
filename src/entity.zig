@@ -11,8 +11,9 @@ pub const Prefab = prefab.Prefab;
 pub const EntityId = u32;
 
 pub const Controller = struct {
-    const max_speed = 100;
-    const acceleration = 150;
+    const max_speed = 150;
+    const acceleration = 100;
+    const boost_speed = 250;
     const Self = @This();
     pub fn handle_input(self: Self, kinetic: *Kinetic, drift: *Drift, boost: *Boost, transform: *Transform, deltatime: f32) void {
         _ = self;
@@ -22,15 +23,16 @@ pub const Controller = struct {
             .y = @sin(transform.rotation),
         };
 
+        const forward_normal = forward.normalize();
+
         const current_speed = kinetic.velocity.length();
 
-        const accel = acceleration * 1;
+        const accel = acceleration;
         const is_grounded = transform.height == 0;
 
         if (is_grounded and rl.isKeyDown(.w)) {
             if (current_speed < max_speed) {
-                kinetic.velocity.x += accel * forward.x;
-                kinetic.velocity.y += accel * forward.y;
+                kinetic.velocity = forward_normal.scale(@min(current_speed + accel, max_speed));
             }
         }
 
@@ -38,10 +40,12 @@ pub const Controller = struct {
             if (current_speed > -max_speed * 0.5) {
                 kinetic.velocity.x -= accel * forward.x;
                 kinetic.velocity.y -= accel * forward.y;
+                kinetic.velocity = kinetic.velocity.normalize();
+                kinetic.velocity = kinetic.velocity.scale(max_speed * 0.5);
             }
         }
 
-        const base_rotation_speed = kinetic.velocity.length() / max_speed * deltatime;
+        const base_rotation_speed = 2 * current_speed / max_speed * deltatime;
 
         if (drift.is_drifting) {
             if (drift.direction == 0 and is_grounded or is_grounded and kinetic.traction == .Offroad) {
@@ -77,10 +81,8 @@ pub const Controller = struct {
             }
         }
 
-        if (boost.boost_time > 0) {
-            kinetic.velocity.x += accel * forward.x;
-            kinetic.velocity.y += accel * forward.y;
-        }
+        if (boost.boost_time > 0) kinetic.velocity = forward_normal.scale(boost_speed);
+
         const rotation_speed = if (!drift.is_drifting) base_rotation_speed else base_rotation_speed * 0.2;
 
         if (rl.isKeyDown(.a)) {
@@ -183,10 +185,12 @@ pub const Shadow = struct {
     color: rl.Color = .init(0, 0, 0, 125),
 };
 
+pub const Collider = rl.Rectangle;
+
 pub const Entity = struct {
     renderable: ?Renderable = null,
     kinetic: ?Kinetic = null,
-    collision: ?rl.Rectangle = null,
+    collision: ?Collider = null,
     controller: ?Controller = null,
     transform: ?Transform = null,
     shadow: ?Shadow = null,
@@ -318,11 +322,34 @@ pub const ECS = struct {
                         a.renderable = null;
                         a.renderable = null;
                         a.timer = .{ .timer = 1 };
-                    }
-                    if (b.archetype == .ItemBox and a.archetype == .Car) {
+                    } else if (b.archetype == .ItemBox and a.archetype == .Car) {
                         b.collision = null;
                         b.renderable = null;
                         b.timer = .{ .timer = 1 };
+                    } else if (a.archetype == .Car and b.archetype == .Car) {
+                        const a_transform = &a.transform.?;
+                        const b_transform = &b.transform.?;
+
+                        const a_kinetic = &a.kinetic.?;
+                        const b_kinetic = &b.kinetic.?;
+
+                        const a_delta = b_transform.position.subtract(a_transform.position);
+
+                        const normal = a_delta.normalize();
+                        const correction = normal.scale(b_transform.position.distance(a_transform.position) / 2);
+                        a_transform.position = a_transform.position.subtract(correction);
+                        b_transform.position = b_transform.position.add(correction);
+
+                        const relative_vel = b_kinetic.velocity.subtract(a_kinetic.velocity);
+                        const vel_along_normal = relative_vel.dotProduct(normal);
+                        const restitution = 0.5;
+                        const impulse_scalar = -(1 + restitution) * vel_along_normal / 2;
+                        const impulse = normal.scale(impulse_scalar);
+
+                        // works! but might need some tweaks
+
+                        a_kinetic.velocity = a_kinetic.velocity.subtract(impulse);
+                        b_kinetic.velocity = b_kinetic.velocity.add(impulse);
                     }
                 },
                 .Finish => |fin| {
@@ -430,11 +457,11 @@ pub const ECS = struct {
                     }
 
                     if (transform.height == 0) {
-                        kinetic.velocity.x *= kinetic.friction * deltatime;
-                        kinetic.velocity.y *= kinetic.friction * deltatime;
+                        kinetic.velocity.x *= kinetic.friction;
+                        kinetic.velocity.y *= kinetic.friction;
                     } else if (entity.boost) |boost| if (boost.boost_time > 0) {
-                        kinetic.velocity.x *= kinetic.friction * deltatime;
-                        kinetic.velocity.y *= kinetic.friction * deltatime;
+                        kinetic.velocity.x *= kinetic.friction;
+                        kinetic.velocity.y *= kinetic.friction;
                     };
                 }
 

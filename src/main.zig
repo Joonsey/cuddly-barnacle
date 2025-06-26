@@ -285,11 +285,6 @@ const Gamestate = struct {
         self.frame_count += 1;
         switch (self.state) {
             .Playing => |playing| {
-                self.ecs.update(deltatime, self.level);
-                self.level.update_intermediate_texture(self.camera);
-                self.tracks.update(self.ecs);
-                self.particles.update(deltatime, self.ecs.*);
-
                 if (rl.isKeyPressed(.j)) self.use_item();
 
                 // TODO
@@ -298,8 +293,8 @@ const Gamestate = struct {
 
                 switch (playing) {
                     .online => {
-                        self.client.send_player_update(player.*);
                         self.client.sync(self.ecs);
+                        self.client.send_player_update(player.*);
 
                         switch (self.client.ctx.server_state.state) {
                             .Lobby => self.change_state(.Lobby),
@@ -309,6 +304,10 @@ const Gamestate = struct {
                     },
                     .offline => {},
                 }
+                self.ecs.update(deltatime, self.level);
+                self.level.update_intermediate_texture(self.camera);
+                self.tracks.update(self.ecs);
+                self.particles.update(deltatime, self.ecs.*);
 
                 self.show_leaderboard = rl.isKeyDown(.tab);
 

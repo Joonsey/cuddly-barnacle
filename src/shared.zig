@@ -74,6 +74,7 @@ pub const PacketType = enum(u32) {
     lobby_sync,
     server_state_changed,
     finished,
+    collision,
 };
 
 pub const Packet = udptp.Packet(.{ .T = PacketType, .magic_bytes = 0x13800818 });
