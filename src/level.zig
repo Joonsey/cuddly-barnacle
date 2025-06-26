@@ -40,7 +40,7 @@ const Metadata = struct {
 };
 
 fn color_equal(clr: rl.Color, comptime other: rl.Color) bool {
-    return clr.a == other.a and clr.b == other.b and clr.r == other.r and clr.a == other.a;
+    return clr.a == other.a and clr.b == other.b and clr.r == other.r and clr.g == other.g;
 }
 
 pub const Traction = enum {
