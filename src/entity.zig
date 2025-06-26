@@ -380,7 +380,7 @@ pub const ECS = struct {
                                 drift.direction = 0;
                             }
 
-                            const next = lvl.checkpoints[rc.checkpoint + 1 % lvl.checkpoints.len];
+                            const next = lvl.checkpoints[(rc.checkpoint + 1) % lvl.checkpoints.len];
                             const rotation = std.math.atan2(next.position.y - position.y, next.position.x - position.x);
                             transform.rotation = rotation;
                         }
