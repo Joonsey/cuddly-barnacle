@@ -3,6 +3,7 @@ const rl = @import("raylib");
 const renderer = @import("renderer.zig");
 const entity = @import("entity.zig");
 const prefab = @import("prefabs.zig");
+const shared = @import("shared.zig");
 
 pub const Levels = struct {
     pub const level_one: []const u8 = "level1";
@@ -167,7 +168,7 @@ pub const Level = struct {
         return .{
             .physics_image = try rl.loadImage(levels_path ++ directory ++ "/physics.png"),
             .graphics_texture = text,
-            .intermediate_texture = try rl.loadRenderTexture(720, 480),
+            .intermediate_texture = try rl.loadRenderTexture(shared.RENDER_WIDTH, shared.RENDER_HEIGHT),
             .metadata = Metadata.load(levels_path ++ directory ++ "/metadata") catch .{},
             .startup_entities = try load_entities_from_file(levels_path ++ directory ++ "/entities", allocator),
             .checkpoints = try load_checkpoints_from_file(levels_path ++ directory ++ "/checkpoints", allocator),
@@ -267,15 +268,24 @@ pub const Level = struct {
         const shader = self.shader;
         shader.activate();
         const texture = self.intermediate_texture.texture;
-        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_tex_height"), &texture.height, .int);
         rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_tex_width"), &texture.width, .int);
+        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_tex_height"), &texture.height, .int);
 
-        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_rotation"), &camera.rotation, .float);
-        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_offset_x"), &camera.position.x, .float);
-        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_offset_y"), &camera.position.y, .float);
+        const camera_rotation = camera.rotation;
+        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_rotation"), &camera_rotation, .float);
+        const camera_position_x: f32 = camera.position.x;
+        const camera_position_y: f32 = camera.position.y;
+        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_offset_x"), &camera_position_x, .float);
+        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_offset_y"), &camera_position_y, .float);
+
+        const camera_screen_offset_x = camera.render_dimensions.x - camera.screen_offset.x;
+        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_screen_offset_x"), &camera_screen_offset_x, .float);
+        const camera_screen_offset_y = camera.render_dimensions.y - camera.screen_offset.y;
+        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_screen_offset_y"), &camera_screen_offset_y, .float);
+        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_render_width"), &camera_position_y, .float);
 
         rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_time"), &@as(f32, @floatCast(rl.getTime())), .float);
-        texture.drawPro(.{ .x = 0, .y = 0, .width = 720, .height = -480 }, .{ .x = 0, .y = 0, .width = 720, .height = 480 }, .init(0, 0), 0, .white);
+        texture.drawPro(.{ .x = 0, .y = 0, .width = shared.RENDER_WIDTH, .height = -shared.RENDER_HEIGHT }, .{ .x = 0, .y = 0, .width = shared.RENDER_WIDTH, .height = shared.RENDER_HEIGHT }, .init(0, 0), 0, .white);
         shader.deactivate();
     }
 

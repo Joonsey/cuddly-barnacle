@@ -9,11 +9,12 @@ const Finish = @import("level.zig").Finish;
 const util = @import("util.zig");
 
 const prefab = @import("prefabs.zig");
+const shared = @import("shared.zig");
 
 var WINDOW_WIDTH: f32 = 1600;
 var WINDOW_HEIGHT: f32 = 900;
-const RENDER_WIDTH: f32 = 360;
-const RENDER_HEIGHT: f32 = 240;
+const RENDER_WIDTH = shared.RENDER_WIDTH;
+const RENDER_HEIGHT = shared.RENDER_HEIGHT;
 
 fn handle_input(camera: *renderer.Camera) void {
     const forward: rl.Vector2 = .{
@@ -46,10 +47,10 @@ fn handle_input(camera: *renderer.Camera) void {
     }
 
     if (rl.isKeyDown(.q)) {
-        camera.rotation -= 0.05;
+        camera.rotation -= 0.01;
     }
     if (rl.isKeyDown(.e)) {
-        camera.rotation += 0.05;
+        camera.rotation += 0.01;
     }
 
     camera.target(position);
@@ -323,6 +324,8 @@ pub fn main() !void {
 
     const scene = try rl.loadRenderTexture(RENDER_WIDTH, RENDER_HEIGHT);
     var camera = renderer.Camera.init(RENDER_WIDTH, RENDER_HEIGHT);
+    camera.screen_offset.x = RENDER_WIDTH / 2;
+    camera.screen_offset.y = RENDER_HEIGHT / 2;
 
     var checkpoints: std.ArrayListUnmanaged(Checkpoint) = .{};
     defer checkpoints.deinit(allocator);

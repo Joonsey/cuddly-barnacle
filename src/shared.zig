@@ -5,6 +5,9 @@ const Levels = @import("level.zig").Levels;
 
 const to_fixed = @import("util.zig").to_fixed;
 
+pub const RENDER_WIDTH: i32 = 360;
+pub const RENDER_HEIGHT: i32 = 240;
+
 pub const MAX_PLAYERS = 12;
 pub const MIN_PLAYERS = 2;
 pub const MAX_LAPS: usize = 1;

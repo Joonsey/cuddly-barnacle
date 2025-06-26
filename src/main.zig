@@ -15,8 +15,8 @@ const shared = @import("shared.zig");
 
 var WINDOW_WIDTH: i32 = 1540;
 var WINDOW_HEIGHT: i32 = 860;
-const RENDER_WIDTH: i32 = 360;
-const RENDER_HEIGHT: i32 = 240;
+const RENDER_WIDTH = shared.RENDER_WIDTH;
+const RENDER_HEIGHT = shared.RENDER_HEIGHT;
 
 const Inventory = struct {
     item: ?prefab.Item,
