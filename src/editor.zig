@@ -57,7 +57,12 @@ fn handle_input(camera: *renderer.Camera) void {
 
 const Selected = union(enum) {
     None: void,
-    Entity: entity.Entity,
+    Entity: struct {
+        e: entity.Entity,
+        mouse_start: rl.Vector2,
+        mouse_end: rl.Vector2,
+        debug_color: rl.Color = .green,
+    },
     Checkpoints: struct {
         points: std.ArrayListUnmanaged(Checkpoint),
         current: usize = 0,
@@ -77,7 +82,19 @@ const Selected = union(enum) {
     pub fn draw(self: Self, camera: renderer.Camera) void {
         draw_text(self);
         switch (self) {
-            .Entity => |e| e.draw(camera),
+            .Entity => |ent| {
+                const e = ent.e;
+                e.draw(camera);
+
+                if (rl.isKeyDown(.left_shift)) {
+                    const rel_position = camera.get_relative_position(e.transform.?.position);
+                    rl.drawRectangleLines(@intFromFloat(rel_position.x), @intFromFloat(rel_position.y), 16, 16, ent.debug_color);
+                }
+
+                if (rl.isMouseButtonDown(.right)) {
+                    rl.drawLineV(ent.mouse_start, ent.mouse_end, .white);
+                }
+            },
             .Checkpoints => |c| {
                 for (c.points.items, 0..) |point, i| {
                     const relative_pos = camera.get_relative_position(point.position);
@@ -121,8 +138,53 @@ const Selected = union(enum) {
     pub fn update(self: *Self, camera: renderer.Camera, cursor_pos: rl.Vector2, state: *State) void {
         const abs_position = camera.get_absolute_position(cursor_pos);
         switch (self.*) {
-            .Entity => |*e| {
-                e.transform = .{ .position = abs_position };
+            .Entity => |*ent| {
+                const e = &ent.e;
+                e.transform = .{ .position = abs_position, .rotation = if (e.transform) |t| t.rotation else 0 };
+                const mouse_wheel_move = rl.getMouseWheelMove() / 8;
+                e.transform.?.rotation += mouse_wheel_move * std.math.pi;
+
+                if (rl.isKeyDown(.left_alt)) {
+                    for (state.ecs.entities.items) |other| {
+                        if (other.transform) |transform| {
+                            if (transform.position.distance(abs_position) <= 24) {
+                                const delta_y: i32 = @intFromFloat(@abs(transform.position.y - abs_position.y));
+                                const delta_x: i32 = @intFromFloat(@abs(transform.position.x - abs_position.x));
+                                const y_aligned = delta_y < delta_x;
+                                if (y_aligned) e.transform.?.position.y = transform.position.y else e.transform.?.position.x = transform.position.x;
+
+                                const pixel_perfect = if (other.renderable) |renderable| switch (renderable) {
+                                    .Flat => |f| if (y_aligned) f.texture.width - 1 == delta_x else f.texture.height - 1 == delta_y,
+                                    .Stacked => |f| if (y_aligned) f.texture.width - 1 == delta_x else @divTrunc(f.texture.height, f.texture.width) == delta_y,
+                                } else false;
+
+                                ent.debug_color = if (pixel_perfect) .blue else .green;
+
+                                if (pixel_perfect and rl.isMouseButtonDown(.left)) {
+                                    if (state.add_stack.getLastOrNull()) |last| {
+                                        if (last >= state.ecs.entities.items.len) {
+                                            // something weird has happened, we ignore and proceed
+                                            const id = state.ecs.spawn(e.*);
+                                            state.add_stack.append(state.allocator, id) catch unreachable;
+                                        } else {
+                                            const last_transform = state.ecs.get(last).transform.?;
+                                            const perfect_delta_x = @abs(last_transform.position.x - e.transform.?.position.x);
+                                            const perfect_delta_y = @abs(last_transform.position.y - e.transform.?.position.y);
+                                            if (perfect_delta_x < 1 and perfect_delta_y > 8 or perfect_delta_y < 1 and perfect_delta_x > 8) {
+                                                const id = state.ecs.spawn(e.*);
+                                                state.add_stack.append(state.allocator, id) catch unreachable;
+                                            }
+                                        }
+                                    } else {
+                                        const id = state.ecs.spawn(e.*);
+                                        state.add_stack.append(state.allocator, id) catch unreachable;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
 
                 if (rl.isMouseButtonPressed(.left)) {
                     const id = state.ecs.spawn(e.*);
@@ -145,6 +207,27 @@ const Selected = union(enum) {
                     e.archetype = next.archetype;
                     e.shadow = next.shadow;
                     e.prefab = next.prefab;
+                }
+
+                if (rl.isMouseButtonDown(.right)) {
+                    for (state.ecs.entities.items, 0..) |potential_entity, id| {
+                        if (potential_entity.transform) |transform| {
+                            if (transform.position.distance(abs_position) < 16) {
+                                state.ecs.despawn(@intCast(id));
+                                e.* = potential_entity;
+
+                                for (state.add_stack.items, 0..) |*add_id, idx| {
+                                    if (add_id.* == id) {
+                                        _ = state.add_stack.swapRemove(idx);
+                                    }
+                                    if (add_id.* < id) {
+                                        add_id.* -= 1;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
                 }
             },
             .Checkpoints => |*c| {
@@ -204,6 +287,13 @@ const State = struct {
     radius: f32 = 64,
 };
 
+fn draw_debug(ecs: entity.ECS, camera: renderer.Camera) void {
+    for (ecs.entities.items) |e| {
+        const rel_position = camera.get_relative_position(e.transform.?.position);
+        rl.drawRectangleLines(@intFromFloat(rel_position.x), @intFromFloat(rel_position.y), 16, 16, .red);
+    }
+}
+
 pub fn main() !void {
     rl.initWindow(@intFromFloat(WINDOW_WIDTH), @intFromFloat(WINDOW_HEIGHT), "test");
     var DBA = std.heap.DebugAllocator(.{}){};
@@ -226,9 +316,9 @@ pub fn main() !void {
     try level.init(allocator);
     defer level.deinit(allocator);
 
-    var selected: Selected = .{ .Entity = prefab.get(.cube) };
+    var selected: Selected = .{ .Entity = .{ .e = prefab.get(.cube), .mouse_end = .init(0, 0), .mouse_start = .init(0, 0) } };
 
-    var lvl = level.get(0);
+    var lvl = level.get(1);
     lvl.load_ecs(&ecs);
 
     const scene = try rl.loadRenderTexture(RENDER_WIDTH, RENDER_HEIGHT);
@@ -255,7 +345,7 @@ pub fn main() !void {
 
         if (rl.isKeyPressed(.z) and (rl.isKeyDown(.left_control))) if (state.add_stack.pop()) |id| state.ecs.despawn(id);
         if (rl.isKeyPressed(.r) and (rl.isKeyDown(.left_control))) {
-            try lvl.save(state.ecs.entities.items, state.level.checkpoints, state.level.finish, allocator, level.Levels.level_two);
+            try lvl.save(state.ecs.entities.items, checkpoints.items, state.level.finish, allocator, level.Levels.level_two);
             std.log.debug("SAVED!", .{});
         }
 
@@ -275,6 +365,7 @@ pub fn main() !void {
         rl.clearBackground(.black);
         state.level.draw(camera);
         state.ecs.draw(camera);
+        if (rl.isKeyDown(.left_shift)) draw_debug(state.ecs, camera);
         selected.draw(camera);
         scene.end();
 
