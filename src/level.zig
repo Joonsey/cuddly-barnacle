@@ -43,7 +43,7 @@ fn color_equal(clr: rl.Color, comptime other: rl.Color) bool {
     return clr.a == other.a and clr.b == other.b and clr.r == other.r and clr.g == other.g;
 }
 
-pub const Traction = enum {
+pub const Traction = enum(u8) {
     Track,
     Offroad,
     Slippery,

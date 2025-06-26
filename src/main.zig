@@ -168,7 +168,7 @@ const Gamestate = struct {
         var tank = prefab.get(self.selected_prefab);
         tank.transform.?.position = self.level.finish.get_spawn(1 + spawn_index);
         tank.transform.?.rotation = self.level.finish.get_direction();
-        tank.kinetic = .{ .velocity = .{ .x = 0, .y = 0 } };
+        tank.kinetic = .{ .velocity = .{ .x = 0, .y = 0 }, .traction = .Track };
         tank.controller = .{};
         tank.drift = .{};
         tank.boost = .{};
@@ -310,15 +310,9 @@ const Gamestate = struct {
                     .offline => {},
                 }
 
-                const transform = player.transform.?;
-                var kinetics = player.kinetic.?;
-                const traction = self.level.get_traction(transform.position);
-
-                kinetics.speed_multiplier = traction.speed_multiplier();
-                kinetics.friction = traction.friction();
-
                 self.show_leaderboard = rl.isKeyDown(.tab);
 
+                const transform = player.transform.?;
                 self.camera.target(transform.position);
                 const delta = transform.rotation + std.math.pi * 0.5 - self.camera.rotation;
                 self.camera.rotation += delta / 120;

@@ -44,7 +44,7 @@ pub const Controller = struct {
         const base_rotation_speed = kinetic.velocity.length() / max_speed * deltatime;
 
         if (drift.is_drifting) {
-            if (drift.direction == 0 and is_grounded) {
+            if (drift.direction == 0 and is_grounded or is_grounded and kinetic.traction == .Offroad) {
                 drift.stage = .none;
                 drift.is_drifting = false;
                 drift.charge_time = 0;
@@ -147,6 +147,7 @@ pub const Kinetic = extern struct {
     friction: f32 = 0.8,
     speed_multiplier: f32 = 1,
     weight: f32 = 40,
+    traction: level.Traction,
 };
 
 pub const Archetype = enum {
@@ -361,8 +362,12 @@ pub const ECS = struct {
             if (entity.transform) |*transform| {
                 var position = transform.position;
                 if (entity.kinetic) |*kinetic| {
+                    kinetic.traction = lvl.get_traction(transform.position);
+                    kinetic.speed_multiplier = kinetic.traction.speed_multiplier();
+                    kinetic.friction = kinetic.traction.friction();
+
                     transform.height = @max(transform.height - (kinetic.weight * deltatime), 0);
-                    if (transform.height == 0 and lvl.get_traction(transform.position) == .Void) {
+                    if (transform.height == 0 and kinetic.traction == .Void) {
                         self.events.append(self.allocator, .{ .Voided = .{ .entity = @intCast(i), .position = transform.position } }) catch unreachable;
                         if (entity.race_context) |rc| {
                             position = lvl.checkpoints[rc.checkpoint].position;
