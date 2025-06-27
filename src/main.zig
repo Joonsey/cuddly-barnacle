@@ -394,8 +394,12 @@ const Gamestate = struct {
 
                 const transform = player.transform.?;
                 self.camera.target(transform.position);
-                const delta = transform.rotation + std.math.pi * 0.5 - self.camera.rotation;
-                self.camera.rotation += delta / 120;
+                if (player.spinout == null) {
+                    var delta = transform.rotation + std.math.pi * 0.5 - self.camera.rotation;
+                    // simple angle wrapping, might be better way to this
+                    delta = std.math.atan2(std.math.sin(delta), std.math.cos(delta));
+                    self.camera.rotation += delta / 120;
+                }
             },
             .Browsing => {
                 if (self.frame_count % 140 == 0) self.client.update_rooms();

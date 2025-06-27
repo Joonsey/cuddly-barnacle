@@ -203,6 +203,12 @@ pub const Target = extern struct {
     id: EntityId,
 };
 
+pub const Spinout = extern struct {
+    remaining_time: f32 = 1,
+    total_duration: f32 = 1,
+    original_rotation: f32,
+};
+
 pub const Collider = rl.Rectangle;
 
 pub const Entity = struct {
@@ -220,6 +226,7 @@ pub const Entity = struct {
     timer: ?Timer = null,
     name_tag: ?NameTag = null,
     target: ?Target = null,
+    spinout: ?Spinout = null,
 
     const Self = @This();
     pub fn update(self: *Self, deltatime: f32) ?Event {
@@ -229,7 +236,7 @@ pub const Entity = struct {
                 if (self.drift) |*drift| {
                     if (self.transform) |*transform| {
                         if (self.boost) |*boost| {
-                            controller.handle_input(kinetic, drift, boost, transform, deltatime);
+                            if (self.spinout == null) controller.handle_input(kinetic, drift, boost, transform, deltatime);
                         }
                     }
                 }
@@ -245,6 +252,19 @@ pub const Entity = struct {
 
         if (self.timer) |*timer| {
             timer.timer = @max(timer.timer - deltatime, 0);
+        }
+
+        if (self.spinout) |*spinout| {
+            spinout.remaining_time -= deltatime;
+
+            if (spinout.remaining_time <= 0) {
+                self.spinout = null;
+            } else if (self.transform) |*transform| {
+                const t = 1.0 - (spinout.remaining_time / spinout.total_duration);
+                const spin_angle = std.math.tau * 3.0 * t; // 3 full spins during the duration
+
+                transform.rotation = spinout.original_rotation + spin_angle;
+            }
         }
 
         return event;
@@ -373,10 +393,10 @@ pub const ECS = struct {
                         b_kinetic.velocity = b_kinetic.velocity.add(impulse);
                     } else if (a.archetype == .Missile and b.archetype == .Car) {
                         kill(a);
-                        // add spinout component to car
+                        b.spinout = .{ .original_rotation = b.transform.?.rotation };
                     } else if (b.archetype == .Missile and a.archetype == .Car) {
                         kill(b);
-                        // add spinout component to car
+                        a.spinout = .{ .original_rotation = a.transform.?.rotation };
                     } else if (b.archetype == .Missile) {
                         kill(b);
                     } else if (a.archetype == .Missile) {
