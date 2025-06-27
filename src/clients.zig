@@ -137,17 +137,20 @@ pub const GameClient = struct {
         _ = ecs;
         switch (event) {
             .Finish => |finish_event| {
-                _ = finish_event;
-                const finish: shared.Finish = .{ .id = self.ctx.own_player_id, .time = std.time.milliTimestamp() };
-                self.ctx.players_who_have_completed.append(self.allocator, finish) catch unreachable;
-                self.is_finished = true;
+                if (self.player_map.get(self.ctx.own_player_id)) |self_player| {
+                    if (self_player == finish_event.entity) {
+                        const finish: shared.Finish = .{ .id = self.ctx.own_player_id, .time = std.time.milliTimestamp() };
+                        self.ctx.players_who_have_completed.append(self.allocator, finish) catch unreachable;
+                        self.is_finished = true;
 
-                var buffer: [512]u8 = undefined;
-                const packet = shared.Packet.init(.finished, udptp.serialize_payload(&buffer, finish) catch unreachable) catch unreachable;
-                const data = packet.serialize(self.allocator) catch unreachable;
-                defer self.allocator.free(data);
+                        var buffer: [512]u8 = undefined;
+                        const packet = shared.Packet.init(.finished, udptp.serialize_payload(&buffer, finish) catch unreachable) catch unreachable;
+                        const data = packet.serialize(self.allocator) catch unreachable;
+                        defer self.allocator.free(data);
 
-                self.client.send(data);
+                        self.client.send(data);
+                    }
+                }
             },
             else => {},
         }

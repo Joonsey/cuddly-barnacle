@@ -175,6 +175,7 @@ const Gamestate = struct {
         tank.race_context = .{};
         tank.name_tag = .{ .name = self.name };
         const player_id = self.ecs.spawn(tank);
+        self.client.player_map.put(self.allocator, self.client.ctx.own_player_id, player_id) catch unreachable;
         self.inventory.set_player(player_id);
     }
 
