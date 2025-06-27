@@ -623,8 +623,6 @@ pub fn main() !void {
     state.name = user_settings.player_name;
     rl.setMasterVolume(user_settings.volume);
 
-    const music = try rl.loadMusicStream("assets/music/select_amusement_park_bpm115_0.ogg");
-
     state.client.start();
     state.client.update_rooms();
 
@@ -634,8 +632,6 @@ pub fn main() !void {
     while (!rl.windowShouldClose()) {
         const deltatime = rl.getFrameTime();
         state.update(deltatime);
-
-        rl.updateMusicStream(music);
 
         scene.begin();
         rl.clearBackground(.black);
