@@ -65,6 +65,7 @@ pub fn deinit(allocator: std.mem.Allocator) void {
     map.deinit(allocator);
     arr.deinit(allocator);
     items.deinit(allocator);
+    ui.deinit(allocator);
 }
 
 pub fn get(fab: Prefab) entity.Entity {
