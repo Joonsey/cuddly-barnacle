@@ -142,6 +142,19 @@ pub const Boost = extern struct {
 
 pub const NameTag = extern struct {
     name: [16]u8,
+
+    pub fn draw(self: NameTag, transform: Transform, camera: Camera) void {
+        const text = rl.textFormat("%s", .{&self.name});
+        const font_size = 10;
+        const y_offset = transform.height + 20;
+        const text_size = rl.measureText(text, font_size);
+        const text_half_size: f32 = @floatFromInt(@divFloor(text_size, 2));
+
+        const rel_position = camera.get_relative_position(transform.position);
+        const text_position = rel_position.subtract(.{ .x = text_half_size, .y = y_offset });
+        rl.drawText(text, @intFromFloat(text_position.x), @intFromFloat(text_position.y), font_size, .white);
+        rl.drawLineV(.init(rel_position.x - text_half_size, rel_position.y - y_offset + font_size), .init(rel_position.x + text_half_size, rel_position.y - y_offset + font_size), .white);
+    }
 };
 
 pub const Kinetic = extern struct {
@@ -250,6 +263,8 @@ pub const Entity = struct {
                     },
                 }
             }
+
+            if (self.name_tag) |name_tag| name_tag.draw(transform, camera);
         }
     }
 };
