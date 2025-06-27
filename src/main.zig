@@ -413,8 +413,9 @@ const Gamestate = struct {
                     if (rl.isKeyPressed(.s)) self.selector = (self.selector + 1) % amount_of_user_settings;
 
                     if (self.selector == 0) {
-                        if (rl.isKeyPressed(.a)) user_settings_copy.volume = @max(user_settings_copy.volume - 0.05, 0);
-                        if (rl.isKeyPressed(.d)) user_settings_copy.volume = @min(user_settings_copy.volume + 0.05, 1);
+                        const change: f32 = if (rl.isKeyDown(.left_shift)) 0.01 else 0.05;
+                        if (rl.isKeyPressed(.a)) user_settings_copy.volume = @max(user_settings_copy.volume - change, 0);
+                        if (rl.isKeyPressed(.d)) user_settings_copy.volume = @min(user_settings_copy.volume + change, 1);
                     } else if (self.selector == 1) {
                         if (rl.isKeyPressed(.e)) {
                             state.is_writing = true;
