@@ -60,7 +60,7 @@ pub const Traction = enum(u8) {
 
     pub fn friction(self: Traction) f32 {
         return switch (self) {
-            .Track => 0.90,
+            .Track => 0.97,
             .Offroad => 0.2,
             .Slippery => 0.99,
             .Void => 0,
