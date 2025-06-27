@@ -131,6 +131,14 @@ pub fn handle_packet_cb(self: *GameServerType, data: []const u8, sender: udptp.n
                 self.ctx.finished_count += 1;
             }
         },
+        .spawn_missile => {
+            if (self.ctx.state.state == .Playing or self.ctx.state.state == .Finishing) {
+                var iter = ctx.players.iterator();
+                while (iter.next()) |player| {
+                    self.send_to(player.key_ptr.*, data);
+                }
+            }
+        },
         else => {},
     }
 

@@ -20,6 +20,8 @@ const GameClientContext = struct {
     rooms: std.ArrayListUnmanaged(shared.Room),
     players_who_have_completed: std.ArrayListUnmanaged(shared.Finish) = .{},
 
+    items_to_spawn: std.ArrayListUnmanaged(shared.MissileSpawn) = .{},
+
     lock: std.Thread.RwLock,
 
     allocator: std.mem.Allocator,
@@ -37,6 +39,8 @@ const GameClientContext = struct {
 
     pub fn deinit(self: *Self) void {
         self.rooms.deinit(self.allocator);
+        self.players_who_have_completed.deinit(self.allocator);
+        self.items_to_spawn.deinit(self.allocator);
     }
 };
 
@@ -98,6 +102,10 @@ fn handle_packet(self: *GameClientType, data: []const u8, sender: udptp.network.
         .finished => {
             const finish = try udptp.deserialize_payload(packet.payload, shared.Finish);
             if (finish.id != ctx.own_player_id) try self.ctx.players_who_have_completed.append(self.allocator, finish);
+        },
+        .spawn_missile => {
+            const item_spawn_sync = try udptp.deserialize_payload(packet.payload, shared.MissileSpawnSync);
+            if (item_spawn_sync.id != ctx.own_player_id) try ctx.items_to_spawn.append(self.allocator, item_spawn_sync.item);
         },
         else => {},
     }
@@ -258,6 +266,39 @@ pub const GameClient = struct {
                 self.player_map.put(self.allocator, update.id, entity_id) catch unreachable;
             }
         }
+
+        if (self.ctx.items_to_spawn.pop()) |item| {
+            var pre = prefab.get(item.prefab);
+            if (self.player_map.get(item.target)) |entity_id| {
+                pre.target = .{ .id = entity_id };
+                pre.kinetic = item.kinetic;
+                pre.race_context = item.race_context;
+                pre.transform = item.transform;
+                _ = ecs.spawn(pre);
+            }
+        }
+    }
+
+    pub fn send_spawn_missile(self: *Self, new_item: entity.Entity) void {
+        var buffer: [1024]u8 = undefined;
+        const item_spawn: shared.MissileSpawn = .{
+            .transform = new_item.transform.?,
+            .prefab = new_item.prefab.?,
+            .race_context = new_item.race_context.?,
+            .kinetic = new_item.kinetic.?,
+            .target = @intCast(new_item.target.?.id),
+        };
+
+        const item_spawn_sync: shared.MissileSpawnSync = .{
+            .id = self.ctx.own_player_id,
+            .item = item_spawn,
+        };
+
+        const packet = shared.Packet.init(.spawn_missile, udptp.serialize_payload(&buffer, item_spawn_sync) catch unreachable) catch unreachable;
+        const data = packet.serialize(self.allocator) catch unreachable;
+        defer self.allocator.free(data);
+
+        self.client.send(data);
     }
 
     pub fn send_player_update(self: *Self, player: entity.Entity) void {

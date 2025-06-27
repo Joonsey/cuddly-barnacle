@@ -12,6 +12,7 @@ pub const Prefab = enum(u8) {
     fence,
     fence_end,
     fence_corner,
+    missile,
 };
 
 const Map = std.AutoHashMapUnmanaged(Prefab, entity.Entity);
@@ -32,6 +33,8 @@ pub fn init(allocator: std.mem.Allocator) !void {
     try reg(.fence_end, allocator, .{ .archetype = .Wall, .collision = .{ .x = 0, .y = 0, .width = 8, .height = 8 }, .transform = .{ .position = .{ .x = 0, .y = 0 } }, .renderable = .{ .Stacked = try .init("assets/fence-3.png") } });
     try reg(.fence_corner, allocator, .{ .archetype = .Wall, .collision = .{ .x = 0, .y = 0, .width = 8, .height = 8 }, .transform = .{ .position = .{ .x = 0, .y = 0 } }, .renderable = .{ .Stacked = try .init("assets/fence-0.png") } });
 
+    try reg(.missile, allocator, .{ .archetype = .Missile, .transform = .{ .position = .{ .x = 0, .y = 0 } }, .renderable = .{ .Stacked = try .init("assets/missile.png") }, .shadow = .{ .radius = 8 }, .timer = .{ .timer = 0.5 } });
+
     try reg(.tank, allocator, .{ .archetype = .Car, .collision = .{ .x = 0, .y = 0, .width = 18, .height = 18 }, .transform = .{ .position = .{ .x = 0, .y = 0 } }, .renderable = .{ .Stacked = try .init("assets/tank.png") }, .shadow = .{ .radius = 9 } });
     try reg(.car_base, allocator, .{ .archetype = .Car, .collision = .{ .x = 0, .y = 0, .width = 16, .height = 16 }, .transform = .{ .position = .{ .x = 0, .y = 0 } }, .renderable = .{ .Stacked = try .init("assets/car_base.png") }, .shadow = .{ .radius = 8 } });
 
@@ -39,6 +42,7 @@ pub fn init(allocator: std.mem.Allocator) !void {
 
     // init icons
     try items.put(allocator, .boost, try rl.loadTexture("assets/ui/icons/boost.png"));
+    try items.put(allocator, .missile, try rl.loadTexture("assets/ui/icons/missile.png"));
 
     // UI elements
     try ui.put(allocator, .notready, try rl.loadTexture("assets/ui/lobby/notready.png"));
@@ -105,6 +109,7 @@ pub fn iter(allocator: std.mem.Allocator) Iterator {
 
 pub const Item = enum(u8) {
     boost,
+    missile,
 };
 
 pub const UI = enum(u8) {

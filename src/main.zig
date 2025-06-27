@@ -64,7 +64,8 @@ const Inventory = struct {
                 const b = ecs.get(col.b);
                 if (a.archetype == .ItemBox and col.b == self.player_id or b.archetype == .ItemBox and col.a == self.player_id) {
                     var eligible_items: std.ArrayListUnmanaged(prefab.Item) = .{};
-                    eligible_items.append(self.allocator, prefab.Item.boost) catch unreachable;
+                    // eligible_items.append(self.allocator, prefab.Item.boost) catch unreachable;
+                    eligible_items.append(self.allocator, prefab.Item.missile) catch unreachable;
                     self.generate_item(eligible_items.items);
                     eligible_items.deinit(self.allocator);
                 }
@@ -184,6 +185,58 @@ const Gamestate = struct {
         self.inventory.set_player(player_id);
     }
 
+    fn determine_missile_target(self: *Self) shared.PlayerId {
+        var iter = self.client.player_map.iterator();
+        const self_player = self.ecs.get(self.inventory.player_id);
+        // checking for player directly in front of the player
+        const target = blk: {
+            while (iter.next()) |player| {
+                if (player.key_ptr.* == self.client.ctx.own_player_id) continue;
+
+                const other_player_entity_id: entity.EntityId = @intCast(player.value_ptr.*);
+                const other_player_entity = self.ecs.get(other_player_entity_id);
+                if (other_player_entity.race_context) |other_rc| {
+                    if (self_player.race_context) |own_rc| {
+                        if (own_rc.checkpoint == other_rc.checkpoint) {
+                            if (other_player_entity.transform) |other_transform| {
+                                if (self_player.transform) |own_transform| {
+                                    const to_other = other_transform.position.subtract(own_transform.position).normalize();
+                                    const self_forward: rl.Vector2 = .init(std.math.cos(own_transform.rotation), std.math.sin(own_transform.rotation));
+
+                                    const dot = self_forward.dotProduct(to_other);
+                                    if (dot > 0) break :blk player.key_ptr.*;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            break :blk null;
+        };
+
+        if (target) |t| return t;
+
+        for (1..self.level.checkpoints.len) |i| {
+            iter.index = 0;
+            while (iter.next()) |player| {
+                if (player.key_ptr.* == self.client.ctx.own_player_id) continue;
+
+                const other_player_entity_id: entity.EntityId = @intCast(player.value_ptr.*);
+                const other_player_entity = self.ecs.get(other_player_entity_id);
+                if (other_player_entity.race_context) |other_rc| {
+                    if (self_player.race_context) |own_rc| {
+                        if ((own_rc.checkpoint + i) % self.level.checkpoints.len == other_rc.checkpoint) {
+                            return player.key_ptr.*;
+                        }
+                    }
+                }
+            }
+        }
+
+        return self.client.ctx.own_player_id;
+    }
+
     pub fn use_item(self: *Self) void {
         if (self.inventory.item) |item| switch (item) {
             .boost => {
@@ -191,6 +244,20 @@ const Gamestate = struct {
                     const turbo = entity.DriftStage.Turbo;
                     boost.boost_time = entity.DriftStage.get_boost_time(turbo);
                 }
+            },
+            .missile => {
+                const player = self.ecs.get(self.inventory.player_id);
+                var pre = prefab.get(.missile);
+                pre.race_context = player.race_context;
+                pre.transform = player.transform;
+                pre.kinetic = player.kinetic;
+                pre.transform.?.height = 10;
+                pre.kinetic.?.weight = 0;
+                const target_player_id = self.determine_missile_target();
+                pre.target = .{ .id = @intCast(target_player_id) };
+                self.client.send_spawn_missile(pre);
+                if (self.client.player_map.get(target_player_id)) |entity_id| pre.target.?.id = entity_id;
+                _ = self.ecs.spawn(pre);
             },
         };
 
@@ -299,13 +366,16 @@ const Gamestate = struct {
                 if (rl.isKeyPressed(.j)) self.use_item();
 
                 // TODO
-                const player = self.ecs.get_mut(self.inventory.player_id);
-                player.controller = if (self.has_started()) .{} else null;
+                // THIS MAY GET REALLOCATED ELSEWHERE!! UNSAFE TO USE
+                const mut_player = self.ecs.get_mut(self.inventory.player_id);
+                mut_player.controller = if (self.has_started()) .{} else null;
+
+                const player = self.ecs.get(self.inventory.player_id);
 
                 switch (playing) {
                     .online => {
+                        self.client.send_player_update(player);
                         self.client.sync(self.ecs);
-                        self.client.send_player_update(player.*);
 
                         switch (self.client.ctx.server_state.state) {
                             .Lobby => self.change_state(.Lobby),

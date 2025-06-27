@@ -74,7 +74,7 @@ pub const PacketType = enum(u32) {
     lobby_sync,
     server_state_changed,
     finished,
-    collision,
+    spawn_missile,
 };
 
 pub const Packet = udptp.Packet(.{ .T = PacketType, .magic_bytes = 0x13800818 });
@@ -147,6 +147,19 @@ pub const State = enum(u8) {
     Starting,
     Playing,
     Finishing,
+};
+
+pub const MissileSpawn = extern struct {
+    transform: entity.Transform,
+    prefab: entity.Prefab,
+    race_context: entity.RaceContext,
+    kinetic: entity.Kinetic,
+    target: PlayerId,
+};
+
+pub const MissileSpawnSync = extern struct {
+    id: PlayerId,
+    item: MissileSpawn,
 };
 
 pub const Finish = extern struct {

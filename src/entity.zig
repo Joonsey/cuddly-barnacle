@@ -169,6 +169,7 @@ pub const Archetype = enum {
     None,
     Car,
     Obstacle,
+    Missile,
     Wall,
     ItemBox,
 };
@@ -198,6 +199,10 @@ pub const Shadow = struct {
     color: rl.Color = .init(0, 0, 0, 125),
 };
 
+pub const Target = extern struct {
+    id: EntityId,
+};
+
 pub const Collider = rl.Rectangle;
 
 pub const Entity = struct {
@@ -214,6 +219,7 @@ pub const Entity = struct {
     boost: ?Boost = null,
     timer: ?Timer = null,
     name_tag: ?NameTag = null,
+    target: ?Target = null,
 
     const Self = @This();
     pub fn update(self: *Self, deltatime: f32) ?Event {
@@ -333,11 +339,11 @@ pub const ECS = struct {
                 .Collision => |col| {
                     const a = &self.entities.items[col.a];
                     const b = &self.entities.items[col.b];
-                    if (a.archetype == .ItemBox and b.archetype == .Car) {
+                    if (a.archetype == .ItemBox and (b.archetype == .Car or b.archetype == .Missile)) {
                         a.renderable = null;
                         a.renderable = null;
                         a.timer = .{ .timer = 1 };
-                    } else if (b.archetype == .ItemBox and a.archetype == .Car) {
+                    } else if (b.archetype == .ItemBox and (a.archetype == .Car or a.archetype == .Missile)) {
                         b.collision = null;
                         b.renderable = null;
                         b.timer = .{ .timer = 1 };
@@ -365,6 +371,16 @@ pub const ECS = struct {
 
                         a_kinetic.velocity = a_kinetic.velocity.subtract(impulse);
                         b_kinetic.velocity = b_kinetic.velocity.add(impulse);
+                    } else if (a.archetype == .Missile and b.archetype == .Car) {
+                        kill(a);
+                        // add spinout component to car
+                    } else if (b.archetype == .Missile and a.archetype == .Car) {
+                        kill(b);
+                        // add spinout component to car
+                    } else if (b.archetype == .Missile) {
+                        kill(b);
+                    } else if (a.archetype == .Missile) {
+                        kill(a);
                     }
                 },
                 .Finish => |fin| {
@@ -520,6 +536,37 @@ pub const ECS = struct {
                         entity.timer = null;
                     }
                 }
+            } else if (entity.archetype == .Missile) {
+                if (entity.timer) |timer| {
+                    if (timer.timer <= 0) {
+                        entity.collision = .{ .x = 0, .y = 0, .width = 16, .height = 16 };
+                        entity.timer = null;
+                    }
+                }
+                if (entity.target) |target_component| {
+                    const speed = 200;
+                    const target_entity = self.get(target_component.id);
+                    if (entity.kinetic) |*kinetic| {
+                        if (entity.transform) |*transform| {
+                            if (entity.race_context) |missile_rc| {
+                                if (target_entity.race_context) |target_rc| {
+                                    if (missile_rc.checkpoint == target_rc.checkpoint) {
+                                        // travel towards target
+                                        if (target_entity.transform) |target_transform| {
+                                            update_velocity_with_rotation_constraint(transform, kinetic, target_transform.position, speed, 1 * deltatime);
+                                        }
+                                    } else {
+                                        // travel towards next checkpoint
+                                        const next_expected_checkpoint_idx = (missile_rc.checkpoint + 1) % lvl.checkpoints.len;
+                                        const next_expected_checkpoint = lvl.checkpoints[next_expected_checkpoint_idx];
+
+                                        update_velocity_with_rotation_constraint(transform, kinetic, next_expected_checkpoint.position, speed, 1 * deltatime);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -533,6 +580,22 @@ pub const ECS = struct {
 
         std.mem.sort(Entity, array.items, camera, order_by_camera_position);
         for (array.items) |entity| entity.draw(camera);
+    }
+
+    pub fn kill(entity: *Entity) void {
+        entity.boost = null;
+        entity.collision = null;
+        entity.controller = null;
+        entity.drift = null;
+        entity.kinetic = null;
+        entity.name_tag = null;
+        entity.prefab = null;
+        entity.race_context = null;
+        entity.renderable = null;
+        entity.shadow = null;
+        entity.target = null;
+        entity.timer = null;
+        entity.transform = null;
     }
 
     pub fn spawn(self: *Self, entity: Entity) EntityId {
@@ -560,3 +623,31 @@ pub const ECS = struct {
         self.event_listeners.deinit(self.allocator);
     }
 };
+
+fn rotate_towards(current: f32, target: f32, max_delta: f32) f32 {
+    var delta = target - current;
+    // Normalize to [-PI, PI]
+    delta = std.math.atan2(std.math.sin(delta), std.math.cos(delta));
+    return current + std.math.clamp(delta, -max_delta, max_delta);
+}
+
+// Common function to calculate velocity with rotation constraint
+fn update_velocity_with_rotation_constraint(
+    transform: *Transform,
+    kinetic: *Kinetic,
+    target_pos: rl.Vector2,
+    speed: f32,
+    max_rotation_rad: f32,
+) void {
+    const dir = target_pos.subtract(transform.position);
+    const desired_angle = std.math.atan2(dir.y, dir.x);
+    transform.rotation = rotate_towards(transform.rotation, desired_angle, max_rotation_rad);
+
+    // Now get new forward direction from updated rotation
+    const new_dir = rl.Vector2{
+        .x = std.math.cos(transform.rotation),
+        .y = std.math.sin(transform.rotation),
+    };
+
+    kinetic.velocity = new_dir.scale(speed);
+}
