@@ -16,12 +16,13 @@ const Map = std.ArrayListUnmanaged(Level);
 var map: Map = .{};
 
 pub fn init(allocator: std.mem.Allocator) !void {
-    try map.append(allocator, try .init(Levels.level_one, allocator, try rl.loadShader(null, "assets/shaders/world_water.fs")));
-    try map.append(allocator, try .init(Levels.level_two, allocator, try rl.loadShader(null, "assets/shaders/world_lava.fs")));
+    try map.append(allocator, try .init(Levels.level_one, allocator, try rl.loadShader(null, "assets/shaders/world_water.fs"), try rl.loadMusicStream("assets/music/select_beach_bpm100_0.ogg")));
+    try map.append(allocator, try .init(Levels.level_two, allocator, try rl.loadShader(null, "assets/shaders/world_lava.fs"), try rl.loadMusicStream("assets/music/select_castle_bpm95_0.ogg")));
 }
 
 pub fn deinit(allocator: std.mem.Allocator) void {
-    map.deinit(allocator);
+    for (map.items) |lvl| lvl.deinit(allocator);
+    map.clearAndFree(allocator);
 }
 
 pub fn get(idx: usize) Level {
@@ -149,6 +150,7 @@ pub const Level = struct {
     intermediate_texture: rl.RenderTexture,
     metadata: Metadata,
     icon: rl.Texture,
+    sound_track: rl.Music,
 
     startup_entities: []entity.Entity,
     checkpoints: []Checkpoint,
@@ -162,7 +164,7 @@ pub const Level = struct {
 
     const Self = @This();
     const levels_path = "assets/levels/";
-    pub fn init(comptime directory: []const u8, allocator: std.mem.Allocator, shader: rl.Shader) !Self {
+    pub fn init(comptime directory: []const u8, allocator: std.mem.Allocator, shader: rl.Shader, music: rl.Music) !Self {
         const text = try rl.loadTexture(levels_path ++ directory ++ "/graphics.png");
 
         return .{
@@ -174,6 +176,7 @@ pub const Level = struct {
             .checkpoints = try load_checkpoints_from_file(levels_path ++ directory ++ "/checkpoints", allocator),
             .finish = try load_finish_from_file(levels_path ++ directory ++ "/finish", allocator),
             .icon = try rl.loadTexture(levels_path ++ directory ++ "/icon.png"),
+            .sound_track = music,
             .shader = shader,
         };
     }
