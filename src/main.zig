@@ -12,6 +12,7 @@ const server = @import("server.zig");
 const client = @import("clients.zig");
 const util = @import("util.zig");
 const shared = @import("shared.zig");
+const settings = @import("settings.zig");
 
 var WINDOW_WIDTH: i32 = 1540;
 var WINDOW_HEIGHT: i32 = 860;
@@ -85,6 +86,10 @@ const State = union(enum) {
     },
     Browsing,
     Lobby,
+    Settings: struct {
+        is_writing: bool = false,
+        name_len: usize = 0,
+    },
 };
 
 const Gamestate = struct {
@@ -142,7 +147,7 @@ const Gamestate = struct {
             .inventory = inventory,
             .client = cli,
 
-            .state = .Browsing,
+            .state = .{ .Settings = .{} },
 
             .allocator = allocator,
         };
@@ -196,7 +201,6 @@ const Gamestate = struct {
         self.ecs.deinit();
         self.allocator.destroy(self.ecs);
 
-        self.level.deinit(self.allocator);
         self.tracks.deinit();
         self.allocator.destroy(self.tracks);
 
@@ -207,6 +211,7 @@ const Gamestate = struct {
         self.allocator.destroy(self.inventory);
 
         self.client.deinit();
+        self.allocator.destroy(self.client);
         if (self.server) |*s| s.deinit();
     }
 
@@ -246,6 +251,7 @@ const Gamestate = struct {
                 self.ready = false;
                 self.reset();
                 self.level.load_ecs(self.ecs);
+                rl.playMusicStream(self.level.sound_track);
                 switch (playing) {
                     .offline => {
                         self.spawn_player(0);
@@ -269,6 +275,10 @@ const Gamestate = struct {
                     s.deinit();
                     self.server = null;
                 }
+            },
+            .Settings => {
+                self.selector = 0;
+                self.ready = false;
             },
         }
 
@@ -382,6 +392,45 @@ const Gamestate = struct {
 
                 self.show_leaderboard = rl.isKeyDown(.tab);
             },
+            .Settings => |*state| {
+                var user_settings_copy = settings.get();
+                defer settings.update(user_settings_copy);
+                if (state.is_writing) {
+                    const key = rl.getCharPressed();
+                    if (key >= 32 and key <= 127 and state.name_len < user_settings_copy.player_name.len) {
+                        user_settings_copy.player_name[state.name_len] = @intCast(key);
+                        state.name_len += 1;
+                    }
+
+                    if (rl.isKeyPressed(.enter)) state.is_writing = false;
+                    if (rl.isKeyPressed(.backspace)) {
+                        user_settings_copy.player_name[state.name_len] = 0;
+                        if (state.name_len > 0) state.name_len -= 1;
+                    }
+                } else {
+                    const amount_of_user_settings = 2;
+                    if (rl.isKeyPressed(.w)) self.selector = (self.selector + amount_of_user_settings - 1) % amount_of_user_settings;
+                    if (rl.isKeyPressed(.s)) self.selector = (self.selector + 1) % amount_of_user_settings;
+
+                    if (self.selector == 0) {
+                        if (rl.isKeyPressed(.a)) user_settings_copy.volume = @max(user_settings_copy.volume - 0.05, 0);
+                        if (rl.isKeyPressed(.d)) user_settings_copy.volume = @min(user_settings_copy.volume + 0.05, 1);
+                    } else if (self.selector == 1) {
+                        if (rl.isKeyPressed(.e)) {
+                            state.is_writing = true;
+                            state.name_len = 0;
+                            @memset(&user_settings_copy.player_name, 0);
+                        }
+                        if (rl.isKeyPressed(.d)) user_settings_copy.volume = @min(user_settings_copy.volume + (1 / 20), 1);
+                    }
+
+                    if (rl.isKeyPressed(.q)) {
+                        user_settings_copy.save(self.allocator) catch |err| std.log.err("couldnt save settings! {}", .{err});
+                        rl.setMasterVolume(settings.get().volume);
+                        self.change_state(.Browsing);
+                    }
+                }
+            },
         }
     }
 
@@ -427,6 +476,7 @@ const Gamestate = struct {
 
                 if (self.has_started()) {
                     self.inventory.draw();
+                    rl.updateMusicStream(self.level.sound_track);
                 } else {
                     const delta = self.start_time - std.time.milliTimestamp();
                     const delta_seconds: f32 = @as(f32, @floatFromInt(delta)) / 1000;
@@ -513,13 +563,41 @@ const Gamestate = struct {
 
                 prefab.get(self.selected_prefab).renderable.?.Stacked.draw_raw(.init(RENDER_WIDTH - 30, RENDER_HEIGHT - 30), @floatCast(rl.getTime()));
             },
+            .Settings => |state| {
+                self.draw_background();
+
+                const current_settings = settings.get();
+                const font_size = 10;
+                rl.drawText(rl.textFormat("volume: %.2f", .{current_settings.volume}), 0, 0 * font_size, font_size, if (self.selector == 0) .yellow else .white);
+                rl.drawText(rl.textFormat(if (state.is_writing) "name: %s_" else "name: %s", .{&current_settings.player_name}), 0, 1 * font_size, font_size, if (self.selector == 1) .yellow else .white);
+
+                {
+                    const text = rl.textFormat("'q' to save and go back to main menu", .{});
+                    const text_size = rl.measureText(text, font_size);
+                    rl.drawText(text, shared.RENDER_WIDTH - text_size, shared.RENDER_HEIGHT - font_size, font_size, .ray_white);
+                }
+                if (self.selector == 0) {
+                    const text = rl.textFormat("'a' and 'd' to adjust volume", .{});
+                    const text_size = rl.measureText(text, font_size);
+                    rl.drawText(text, shared.RENDER_WIDTH - text_size, shared.RENDER_HEIGHT - font_size * 2, font_size, .ray_white);
+                }
+                if (self.selector == 1) {
+                    const text = rl.textFormat("'e' change name 'enter' to confirm", .{});
+                    const text_size = rl.measureText(text, font_size);
+                    rl.drawText(text, shared.RENDER_WIDTH - text_size, shared.RENDER_HEIGHT - font_size * 2, font_size, .ray_white);
+                }
+            },
         }
     }
 };
 
 pub fn main() !void {
     rl.setTraceLogLevel(.err);
-    rl.initWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "test");
+    rl.initWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "ZKR");
+    defer rl.closeWindow();
+    rl.initAudioDevice();
+    defer rl.closeAudioDevice();
+
     var DBA = std.heap.DebugAllocator(.{}){};
     defer switch (DBA.deinit()) {
         .leak => {
@@ -531,15 +609,21 @@ pub fn main() !void {
     try prefab.init(allocator);
     defer prefab.deinit(allocator);
 
+    try settings.init(allocator);
+    defer settings.deinit(allocator);
+
     try level.init(allocator);
     defer level.deinit(allocator);
 
     var state: Gamestate = try .init(allocator, level.get(1));
     defer state.deinit();
 
-    const random_network_id = std.crypto.random.int(u32);
-    state.client.ctx.own_player_id = random_network_id; // network id, not entity id
-    state.name = util.to_fixed("Jae", 16);
+    const user_settings = settings.get();
+    state.client.ctx.own_player_id = user_settings.player_id; // network id, not entity id
+    state.name = user_settings.player_name;
+    rl.setMasterVolume(user_settings.volume);
+
+    const music = try rl.loadMusicStream("assets/music/select_amusement_park_bpm115_0.ogg");
 
     state.client.start();
     state.client.update_rooms();
@@ -550,6 +634,8 @@ pub fn main() !void {
     while (!rl.windowShouldClose()) {
         const deltatime = rl.getFrameTime();
         state.update(deltatime);
+
+        rl.updateMusicStream(music);
 
         scene.begin();
         rl.clearBackground(.black);
