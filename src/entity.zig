@@ -463,6 +463,8 @@ pub const ECS = struct {
                         kinetic.velocity.x *= kinetic.friction;
                         kinetic.velocity.y *= kinetic.friction;
                     };
+
+                    if (kinetic.velocity.length() < 0.1) kinetic.velocity = .init(0, 0);
                 }
 
                 transform.position = position;
