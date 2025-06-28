@@ -121,7 +121,7 @@ const Selected = union(enum) {
                 rl.drawText("left", @intFromFloat(left.x), @intFromFloat(left.y), 10, .white);
                 rl.drawText("right", @intFromFloat(right.x), @intFromFloat(right.y), 10, .white);
 
-                for (0..12) |i| {
+                for (1..13) |i| {
                     const spawn = f.get_spawn(i);
                     const rel_spawn = camera.get_relative_position(spawn);
 
