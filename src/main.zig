@@ -478,6 +478,16 @@ const Gamestate = struct {
                             }
                         }
 
+                        const now = std.time.milliTimestamp();
+                        const time_to_end = self.client.ctx.server_state.ctx.time - now;
+                        if (time_to_end < -std.time.ms_per_s * 0.5) {
+                            std.log.err("Missed a packet from the server informing about what state the server is in", .{});
+                            std.log.info("Presuming that we are starting to play", .{});
+                            self.client.request_server_state_resync();
+                            self.change_state(.{ .Playing = .online });
+                            self.start_time = now - time_to_end + std.time.ms_per_s * shared.TIME_TO_START_RACING_S;
+                        }
+
                         self.level = level.get(highest_level);
                     },
                     .Playing => {

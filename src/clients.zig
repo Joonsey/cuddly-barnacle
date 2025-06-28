@@ -192,6 +192,14 @@ pub const GameClient = struct {
         self.player_map.deinit(self.allocator);
     }
 
+    pub fn request_server_state_resync(self: *Self) void {
+        const packet = shared.Packet.init(.req_server_state_sync, "") catch unreachable;
+        const data = packet.serialize(self.allocator) catch unreachable;
+
+        self.client.send(data);
+        defer self.allocator.free(data);
+    }
+
     pub fn send_lobby_update(self: *Self, status: shared.LobbyUpdate) void {
         var buffer: [1024]u8 = undefined;
         const packet = shared.Packet.init(.lobby_update, udptp.serialize_payload(&buffer, status) catch unreachable) catch unreachable;

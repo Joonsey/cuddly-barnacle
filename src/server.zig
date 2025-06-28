@@ -139,6 +139,14 @@ pub fn handle_packet_cb(self: *GameServerType, data: []const u8, sender: udptp.n
                 }
             }
         },
+        .req_server_state_sync => {
+            var buffer: [1024]u8 = undefined;
+            const return_packet = shared.Packet.init(.server_state_changed, udptp.serialize_payload(&buffer, self.ctx.state) catch unreachable) catch unreachable;
+
+            const return_data = return_packet.serialize(self.allocator) catch unreachable;
+            self.send_to(sender, return_data);
+            defer self.allocator.free(return_data);
+        },
         else => {},
     }
 
