@@ -93,21 +93,21 @@ pub const Finish = struct {
             .y = (self.left.y + self.right.y) * 0.5,
         };
 
-        const max_back_offset = 75;
-
         const dir = self.right.subtract(self.left).normalize();
 
         const perp = rl.Vector2{ .x = -dir.y, .y = dir.x };
 
         const back = rl.Vector2{ .x = -dir.x, .y = -dir.y };
 
-        const spacing_side: f32 = 22.0; // pixels between cars side by side
-        const spacing_back: f32 = 22.0; // pixels between rows
+        const spacing_side: f32 = 16.0; // pixels between cars side by side
+        const spacing_back: f32 = 18.0; // pixels between rows
+        const side_max_offset = (self.left.distance(self.right) / 2) / spacing_side;
 
         const side_index: f32 = @as(f32, @floatFromInt(i % 2)) * 2.0 - 1.0; // -1, 1, -1, 1...
-        const side_offset = back.scale(side_index * spacing_side * @as(f32, @floatFromInt(i / 2)));
 
-        const back_offset = perp.scale(@mod(spacing_back * @as(f32, @floatFromInt(i / 2)), max_back_offset));
+        const side_offset = back.scale(side_index * spacing_back * @max(0.75, @mod(@as(f32, @floatFromInt((i + 1) / 2)), side_max_offset)));
+
+        const back_offset = perp.scale(spacing_back * @as(f32, @floatFromInt((i + 1) / 2)));
 
         return center.add(side_offset.add(back_offset));
     }
