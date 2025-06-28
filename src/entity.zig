@@ -273,19 +273,18 @@ pub const Entity = struct {
     pub fn draw(self: Self, camera: Camera) void {
         if (self.transform) |transform| {
             const pos = transform.position;
+            if (camera.is_out_of_bounds(pos)) return;
             if (self.renderable) |renderable| {
                 if (self.shadow) |shadow| {
-                    if (!camera.is_out_of_bounds(pos)) {
-                        rl.drawCircleV(camera.get_relative_position(pos), shadow.radius, shadow.color);
-                    }
+                    rl.drawCircleV(camera.get_relative_position(pos), shadow.radius, shadow.color);
                 }
 
                 switch (renderable) {
                     .Flat => |sprite| {
-                        if (!camera.is_out_of_bounds(pos)) sprite.draw(camera, transform);
+                        sprite.draw(camera, transform);
                     },
                     .Stacked => |sprite| {
-                        if (!camera.is_out_of_bounds(pos)) sprite.draw(camera, transform);
+                        sprite.draw(camera, transform);
                     },
                 }
             }
