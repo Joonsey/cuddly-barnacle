@@ -50,7 +50,9 @@ const Inventory = struct {
 
     pub fn draw(self: Self) void {
         if (self.item) |item| {
-            prefab.get_item(item).drawEx(.init(0, 0), 0, 2, .white);
+            const texture = prefab.get_item(item);
+            rl.drawRectangleV(.init(0, 0), .init(@as(f32, @floatFromInt(texture.width + 1)) * 2, @as(f32, @floatFromInt(texture.height + 1)) * 2), .black);
+            texture.drawEx(.init(0, 0), 0, 2, .white);
         }
     }
 
