@@ -94,6 +94,37 @@ pub const Particles = struct {
                         .kind = .{ .Spark = .{ .scale = 3, .alt_color = .ray_white, .force = 2 } },
                         .rotation = angle,
                     }) catch unreachable;
+                } else if ((a.archetype == .Missile and b.archetype != .ItemBox) or (b.archetype == .Missile and a.archetype != .ItemBox)) {
+                    const a_pos = if (a.transform) |transform| transform.position else null;
+                    const pos = a_pos orelse b.transform.?.position;
+                    const num_angles = 8;
+                    for (0..num_angles) |i| {
+                        const f_i: f32 = @floatFromInt(i);
+                        const f_num_angles: f32 = @floatFromInt(num_angles);
+                        const angle = (f_i / f_num_angles) * std.math.pi * 2;
+
+                        const x: f32 = @cos(angle);
+                        const y: f32 = @sin(angle);
+
+                        const dir: rl.Vector2 = .{ .x = x, .y = y };
+                        self.particles.append(self.allocator, Particle{
+                            .position = pos,
+                            .velocity = dir.scale(20),
+                            .lifetime = 1,
+                            .color = .yellow,
+                            .kind = .{ .Spark = .{ .scale = 5, .alt_color = .red, .force = 7 } },
+                            .rotation = -angle,
+                        }) catch unreachable;
+
+                        self.particles.append(self.allocator, Particle{
+                            .position = pos,
+                            .velocity = dir.scale(10),
+                            .lifetime = 1.4,
+                            .color = .orange,
+                            .kind = .{ .Spark = .{ .scale = 3, .alt_color = .white, .force = 4 } },
+                            .rotation = -angle,
+                        }) catch unreachable;
+                    }
                 }
             },
             else => {},
@@ -133,6 +164,43 @@ pub const Particles = struct {
                 const dir = side.scale(side_velocity).subtract(forward.scale(back_velocity));
 
                 const pos = transform.position.add(side.scale(3));
+                if (e.archetype == .Missile) {
+                    if (self.particle_index % 4 == 0) {
+                        self.particles.append(self.allocator, Particle{
+                            .position = pos,
+                            .velocity = dir.scale(0.7),
+                            .lifetime = 0.8,
+                            .color = .yellow,
+                            .kind = .{ .Rectangle = .{ .x = 4, .y = 4 } },
+                            .rotation = transform.rotation,
+                        }) catch unreachable;
+                        self.particles.append(self.allocator, Particle{
+                            .position = pos,
+                            .velocity = dir.scale(0.1),
+                            .lifetime = 0.6,
+                            .color = .yellow,
+                            .kind = .{ .Rectangle = .{ .x = 2, .y = 2 } },
+                            .rotation = transform.rotation,
+                        }) catch unreachable;
+                    } else {
+                        self.particles.append(self.allocator, Particle{
+                            .position = pos,
+                            .velocity = dir.scale(0.7),
+                            .lifetime = 0.8,
+                            .color = .orange,
+                            .kind = .{ .Rectangle = .{ .x = 2, .y = 2 } },
+                            .rotation = transform.rotation,
+                        }) catch unreachable;
+                        self.particles.append(self.allocator, Particle{
+                            .position = pos,
+                            .velocity = dir.scale(0.1),
+                            .lifetime = 0.6,
+                            .color = .orange,
+                            .kind = .{ .Rectangle = .{ .x = 3, .y = 5 } },
+                            .rotation = transform.rotation,
+                        }) catch unreachable;
+                    }
+                }
                 if (e.boost) |boost| {
                     if (boost.boost_time > 0) {
                         self.particles.append(self.allocator, Particle{
