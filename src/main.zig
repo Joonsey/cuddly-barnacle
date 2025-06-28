@@ -22,7 +22,7 @@ const RENDER_HEIGHT = shared.RENDER_HEIGHT;
 
 const Inventory = struct {
     item: ?prefab.Item,
-    random: std.Random,
+    prng: std.Random.DefaultPrng,
 
     player_id: entity.EntityId,
 
@@ -30,21 +30,22 @@ const Inventory = struct {
     const Self = @This();
 
     pub fn init(allocator: std.mem.Allocator, seed: u64) Self {
-        var rand = std.Random.DefaultPrng.init(seed);
         return .{
             .item = null,
             .allocator = allocator,
-            .random = rand.random(),
+            .prng = std.Random.DefaultPrng.init(seed),
             .player_id = 0,
         };
     }
 
-    pub fn generate_item(self: *Self, eligible_items: []prefab.Item) void {
-        if (self.item) |_| return;
+    pub fn generate_item(self: *Self, eligible_items: []prefab.Item) prefab.Item {
+        if (self.item) |item| return item;
         std.debug.assert(eligible_items.len > 0);
-        // this randomly crashes, no idea why
-        // const chosen = self.random.intRangeAtMost(usize, 0, eligible_items.len - 1);
-        self.item = eligible_items[0];
+
+        if (eligible_items.len == 1) return eligible_items[0];
+        const random = self.prng.random();
+        const chosen = random.uintLessThan(usize, eligible_items.len);
+        return eligible_items[chosen];
     }
 
     pub fn draw(self: Self) void {
@@ -65,9 +66,11 @@ const Inventory = struct {
                 const b = ecs.get(col.b);
                 if (a.archetype == .ItemBox and col.b == self.player_id or b.archetype == .ItemBox and col.a == self.player_id) {
                     var eligible_items: std.ArrayListUnmanaged(prefab.Item) = .{};
-                    // eligible_items.append(self.allocator, prefab.Item.boost) catch unreachable;
+                    eligible_items.append(self.allocator, prefab.Item.boost) catch unreachable;
+                    eligible_items.append(self.allocator, prefab.Item.boost) catch unreachable;
                     eligible_items.append(self.allocator, prefab.Item.missile) catch unreachable;
-                    self.generate_item(eligible_items.items);
+                    eligible_items.append(self.allocator, prefab.Item.missile) catch unreachable;
+                    self.item = self.generate_item(eligible_items.items);
                     eligible_items.deinit(self.allocator);
                 }
             },
