@@ -150,6 +150,7 @@ pub const Level = struct {
     intermediate_texture: rl.RenderTexture,
     metadata: Metadata,
     icon: rl.Texture,
+    minmap: rl.Texture,
     sound_track: rl.Music,
 
     startup_entities: []entity.Entity,
@@ -176,6 +177,7 @@ pub const Level = struct {
             .checkpoints = try load_checkpoints_from_file(levels_path ++ directory ++ "/checkpoints", allocator),
             .finish = try load_finish_from_file(levels_path ++ directory ++ "/finish", allocator),
             .icon = try rl.loadTexture(levels_path ++ directory ++ "/icon.png"),
+            .minmap = try rl.loadTexture(levels_path ++ directory ++ "/minimap.png"),
             .sound_track = music,
             .shader = shader,
         };
@@ -287,6 +289,28 @@ pub const Level = struct {
         rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_time"), &@as(f32, @floatCast(rl.getTime())), .float);
         texture.drawPro(.{ .x = 0, .y = 0, .width = shared.RENDER_WIDTH, .height = -shared.RENDER_HEIGHT }, .{ .x = 0, .y = 0, .width = shared.RENDER_WIDTH, .height = shared.RENDER_HEIGHT }, .init(0, 0), 0, .white);
         shader.deactivate();
+    }
+
+    pub fn draw_minimap(self: Self) void {
+        const minimap = self.minmap;
+        var color: rl.Color = .white;
+        color = color.alpha(0.33);
+        minimap.drawV(.init(@floatFromInt(shared.RENDER_WIDTH - minimap.width), @floatFromInt(shared.RENDER_HEIGHT - minimap.height)), color);
+    }
+
+    pub fn draw_player_on_minimap(self: Self, player: entity.Entity, color: rl.Color) void {
+        std.debug.assert(player.archetype == .Car);
+        const minimap = self.minmap;
+        const base_x: f32 = @floatFromInt(shared.RENDER_WIDTH - minimap.width);
+        const base_y: f32 = @floatFromInt(shared.RENDER_HEIGHT - minimap.height);
+
+        if (player.transform) |transform| {
+            const w_scale: f32 = @as(f32, @floatFromInt(minimap.width)) / @as(f32, @floatFromInt(self.graphics_texture.width));
+            const h_scale: f32 = @as(f32, @floatFromInt(minimap.height)) / @as(f32, @floatFromInt(self.graphics_texture.height));
+            const relative_x: f32 = transform.position.x * w_scale;
+            const relative_y: f32 = transform.position.y * h_scale;
+            rl.drawCircleLinesV(.init(base_x + relative_x, base_y + relative_y), 2, color);
+        }
     }
 
     pub fn deinit(self: Self, allocator: std.mem.Allocator) void {

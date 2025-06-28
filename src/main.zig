@@ -581,6 +581,12 @@ const Gamestate = struct {
                 self.particles.draw(camera);
                 self.ecs.draw(camera);
 
+                self.level.draw_minimap();
+                var iter = self.client.player_map.iterator();
+                while (iter.next()) |ent| {
+                    self.level.draw_player_on_minimap(self.ecs.get(ent.value_ptr.*), if (ent.key_ptr.* == self.client.ctx.own_player_id) .red else .white);
+                }
+
                 if (self.has_started()) {
                     self.inventory.draw();
                     rl.updateMusicStream(self.level.sound_track);
