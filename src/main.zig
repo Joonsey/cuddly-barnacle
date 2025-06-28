@@ -13,6 +13,7 @@ const client = @import("clients.zig");
 const util = @import("util.zig");
 const shared = @import("shared.zig");
 const settings = @import("settings.zig");
+const sounds = @import("sounds.zig");
 
 var WINDOW_WIDTH: i32 = 1540;
 var WINDOW_HEIGHT: i32 = 860;
@@ -96,11 +97,12 @@ const State = union(enum) {
 const Gamestate = struct {
     ecs: *entity.ECS,
     level: level.Level,
-    camera: renderer.Camera,
+    camera: *renderer.Camera,
     tracks: *Tracks,
     particles: *Particles,
     inventory: *Inventory,
     client: *client.GameClient,
+    sfx: *sounds.Sfx,
 
     state: State,
     start_time: i64 = 0,
@@ -135,18 +137,26 @@ const Gamestate = struct {
         const ecs = try allocator.create(entity.ECS);
         ecs.* = .init(allocator);
 
+        const camera = try allocator.create(renderer.Camera);
+        camera.* = .init(RENDER_WIDTH, RENDER_HEIGHT);
+
+        const sfx = try allocator.create(sounds.Sfx);
+        sfx.* = .init(allocator, camera);
+
         ecs.register_observer(.{ .callback = &Particles.on_event, .context = particles });
         ecs.register_observer(.{ .callback = &Inventory.on_event, .context = inventory });
         ecs.register_observer(.{ .callback = &client.GameClient.on_event, .context = cli });
+        ecs.register_observer(.{ .callback = &sounds.Sfx.on_event, .context = sfx });
 
         return .{
             .ecs = ecs,
             .level = lvl,
-            .camera = .init(RENDER_WIDTH, RENDER_HEIGHT),
+            .camera = camera,
             .tracks = tracks,
             .particles = particles,
             .inventory = inventory,
             .client = cli,
+            .sfx = sfx,
 
             .state = .{ .Settings = .{} },
 
@@ -279,6 +289,12 @@ const Gamestate = struct {
 
         self.client.deinit();
         self.allocator.destroy(self.client);
+
+        self.sfx.deinit();
+        self.allocator.destroy(self.sfx);
+
+        self.allocator.destroy(self.camera);
+
         if (self.server) |*s| s.deinit();
     }
 
@@ -290,6 +306,7 @@ const Gamestate = struct {
         self.ecs.register_observer(.{ .callback = &Particles.on_event, .context = self.particles });
         self.ecs.register_observer(.{ .callback = &Inventory.on_event, .context = self.inventory });
         self.ecs.register_observer(.{ .callback = &client.GameClient.on_event, .context = self.client });
+        self.ecs.register_observer(.{ .callback = &sounds.Sfx.on_event, .context = self.sfx });
 
         self.tracks.deinit();
         self.tracks.* = Tracks.init(self.allocator) catch unreachable;
@@ -386,7 +403,7 @@ const Gamestate = struct {
                     .offline => {},
                 }
                 self.ecs.update(deltatime, self.level);
-                self.level.update_intermediate_texture(self.camera);
+                self.level.update_intermediate_texture(self.camera.*);
                 self.tracks.update(self.ecs);
                 self.particles.update(deltatime, self.ecs.*);
 
@@ -544,10 +561,11 @@ const Gamestate = struct {
     pub fn draw(self: Self) void {
         switch (self.state) {
             .Playing => |playing| {
-                self.level.draw(self.camera);
-                self.tracks.draw(self.camera);
-                self.particles.draw(self.camera);
-                self.ecs.draw(self.camera);
+                const camera = self.camera.*;
+                self.level.draw(camera);
+                self.tracks.draw(camera);
+                self.particles.draw(camera);
+                self.ecs.draw(camera);
 
                 if (self.has_started()) {
                     self.inventory.draw();
