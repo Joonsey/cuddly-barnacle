@@ -335,6 +335,7 @@ const Gamestate = struct {
                 self.ready = false;
                 self.reset();
                 self.level.load_ecs(self.ecs);
+                rl.setMusicVolume(self.level.sound_track, settings.get().music_volume);
                 rl.playMusicStream(self.level.sound_track);
                 switch (playing) {
                     .offline => {
@@ -499,26 +500,34 @@ const Gamestate = struct {
                         if (state.name_len > 0) state.name_len -= 1;
                     }
                 } else {
-                    const amount_of_user_settings = 2;
+                    //
+                    // - music volume
+                    // - sound volume
+                    // - player name
+                    const amount_of_user_settings = 3;
                     if (rl.isKeyPressed(.w)) self.selector = (self.selector + amount_of_user_settings - 1) % amount_of_user_settings;
                     if (rl.isKeyPressed(.s)) self.selector = (self.selector + 1) % amount_of_user_settings;
 
                     if (self.selector == 0) {
                         const change: f32 = if (rl.isKeyDown(.left_shift)) 0.01 else 0.05;
-                        if (rl.isKeyPressed(.a)) user_settings_copy.volume = @max(user_settings_copy.volume - change, 0);
-                        if (rl.isKeyPressed(.d)) user_settings_copy.volume = @min(user_settings_copy.volume + change, 1);
+                        if (rl.isKeyPressed(.a)) user_settings_copy.sound_volume = @max(user_settings_copy.sound_volume - change, 0);
+                        if (rl.isKeyPressed(.d)) user_settings_copy.sound_volume = @min(user_settings_copy.sound_volume + change, 1);
                     } else if (self.selector == 1) {
+                        const change: f32 = if (rl.isKeyDown(.left_shift)) 0.01 else 0.05;
+                        if (rl.isKeyPressed(.a)) user_settings_copy.music_volume = @max(user_settings_copy.music_volume - change, 0);
+                        if (rl.isKeyPressed(.d)) user_settings_copy.music_volume = @min(user_settings_copy.music_volume + change, 1);
+                    } else if (self.selector == 2) {
                         if (rl.isKeyPressed(.e)) {
                             state.is_writing = true;
                             state.name_len = 0;
                             @memset(&user_settings_copy.player_name, 0);
                         }
-                        if (rl.isKeyPressed(.d)) user_settings_copy.volume = @min(user_settings_copy.volume + (1 / 20), 1);
                     }
 
                     if (rl.isKeyPressed(.q)) {
                         user_settings_copy.save(self.allocator) catch |err| std.log.err("couldnt save settings! {}", .{err});
-                        rl.setMasterVolume(settings.get().volume);
+                        rl.setMasterVolume(settings.get().sound_volume);
+                        self.name = settings.get().player_name;
                         self.change_state(.Browsing);
                     }
                 }
@@ -661,8 +670,9 @@ const Gamestate = struct {
 
                 const current_settings = settings.get();
                 const font_size = 10;
-                rl.drawText(rl.textFormat("volume: %.2f", .{current_settings.volume}), 0, 0 * font_size, font_size, if (self.selector == 0) .yellow else .white);
-                rl.drawText(rl.textFormat(if (state.is_writing) "name: %s_" else "name: %s", .{&current_settings.player_name}), 0, 1 * font_size, font_size, if (self.selector == 1) .yellow else .white);
+                rl.drawText(rl.textFormat("sound volume: %.2f", .{current_settings.sound_volume}), 0, 0 * font_size, font_size, if (self.selector == 0) .yellow else .white);
+                rl.drawText(rl.textFormat("music volume: %.2f", .{current_settings.music_volume}), 0, 1 * font_size, font_size, if (self.selector == 1) .yellow else .white);
+                rl.drawText(rl.textFormat(if (state.is_writing) "name: %s_" else "name: %s", .{&current_settings.player_name}), 0, 2 * font_size, font_size, if (self.selector == 2) .yellow else .white);
 
                 {
                     const text = rl.textFormat("'q' to save and go back to main menu", .{});
@@ -670,11 +680,16 @@ const Gamestate = struct {
                     rl.drawText(text, shared.RENDER_WIDTH - text_size, shared.RENDER_HEIGHT - font_size, font_size, .ray_white);
                 }
                 if (self.selector == 0) {
-                    const text = rl.textFormat("'a' and 'd' to adjust volume", .{});
+                    const text = rl.textFormat("'a' and 'd' to adjust sound volume", .{});
                     const text_size = rl.measureText(text, font_size);
                     rl.drawText(text, shared.RENDER_WIDTH - text_size, shared.RENDER_HEIGHT - font_size * 2, font_size, .ray_white);
                 }
                 if (self.selector == 1) {
+                    const text = rl.textFormat("'a' and 'd' to adjust music volume", .{});
+                    const text_size = rl.measureText(text, font_size);
+                    rl.drawText(text, shared.RENDER_WIDTH - text_size, shared.RENDER_HEIGHT - font_size * 2, font_size, .ray_white);
+                }
+                if (self.selector == 2) {
                     const text = rl.textFormat("'e' change name 'enter' to confirm", .{});
                     const text_size = rl.measureText(text, font_size);
                     rl.drawText(text, shared.RENDER_WIDTH - text_size, shared.RENDER_HEIGHT - font_size * 2, font_size, .ray_white);
@@ -714,7 +729,7 @@ pub fn main() !void {
     const user_settings = settings.get();
     state.client.ctx.own_player_id = user_settings.player_id; // network id, not entity id
     state.name = user_settings.player_name;
-    rl.setMasterVolume(user_settings.volume);
+    rl.setMasterVolume(user_settings.sound_volume);
 
     state.client.start();
     state.client.update_rooms();

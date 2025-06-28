@@ -6,13 +6,15 @@ const game_name = "zigkartracing";
 const settings_path = game_name ++ "/settings.cfg";
 
 pub const Settings = struct {
-    volume: f32,
+    sound_volume: f32,
+    music_volume: f32,
     player_name: [16]u8,
     player_id: u32,
 
     pub fn default() Settings {
         return .{
-            .volume = 0.01,
+            .sound_volume = 0.25,
+            .music_volume = 0.05,
             .player_name = util.to_fixed("zkr player", 16),
             .player_id = std.crypto.random.int(u32),
         };
@@ -20,7 +22,8 @@ pub const Settings = struct {
 
     pub fn reset_user_settings(s: Settings) Settings {
         return .{
-            .volume = 0.01,
+            .sound_volume = 0.25,
+            .music_volume = 0.05,
             .player_name = s.player_name,
             .player_id = s.player_id,
         };
@@ -46,7 +49,8 @@ pub const Settings = struct {
     }
 
     fn validate(s: Settings) !void {
-        if (s.volume > 1) return error.VolumeTooHigh;
+        if (s.music_volume > 1) return error.VolumeTooHigh;
+        if (s.sound_volume > 1) return error.VolumeTooHigh;
         if (s.player_id == 0) return error.InvalidPlayerId;
     }
 
