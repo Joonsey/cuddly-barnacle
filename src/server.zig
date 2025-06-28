@@ -236,6 +236,7 @@ pub const GameServer = struct {
             .Finishing => {
                 if (timestamp >= self.ctx.state.ctx.time) {
                     self.ctx.state.state = .Lobby;
+                    self.ctx.finished_count = 0;
                     for (0..self.ctx.ready_check.len) |i| {
                         self.ctx.ready_check[i].update.ready = false;
                     }
