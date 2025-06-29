@@ -4,10 +4,7 @@ const std = @import("std");
 const udptp = @import("udptp");
 const shared = @import("shared.zig");
 
-const JoinPolicy = shared.JoinPolicy;
 const PacketType = shared.PacketType;
-const CloseReason = shared.CloseReason;
-
 const Packet = shared.Packet;
 const Server = shared.Server;
 const ServerSync = shared.ServerSync;
