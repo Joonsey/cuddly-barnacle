@@ -78,10 +78,25 @@ pub const PacketType = enum(u32) {
 
 pub const Packet = udptp.Packet(.{ .T = PacketType, .magic_bytes = 0x13800818 });
 
-pub const Server = extern struct {
+pub const ContinentCode = enum(u8) {
+    AS,
+    AF,
+    NA,
+    SA,
+    AN,
+    EU,
+    AU,
+    Unknown,
+};
+
+pub const Aggregate = extern struct {
     host_name: [16]u8,
     num_players: usize,
     player_id: PlayerId,
+};
+pub const Server = extern struct {
+    aggregate: Aggregate,
+    continent: ContinentCode,
 };
 
 pub const JoinRequestPayload = extern struct {

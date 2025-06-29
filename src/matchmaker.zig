@@ -4,6 +4,8 @@ const std = @import("std");
 const udptp = @import("udptp");
 const shared = @import("shared.zig");
 
+const HttpClient = std.http.Client;
+
 const PacketType = shared.PacketType;
 const Packet = shared.Packet;
 const Server = shared.Server;
@@ -12,12 +14,27 @@ const ServerSync = shared.ServerSync;
 const PORT = shared.MATCHMAKING_PORT;
 const to_fixed = shared.to_fixed;
 
+const IP_API_BASE_URL = "http://ip-api.com/json/";
+
+const IpLocation = struct {
+    continentCode: []const u8,
+};
+
+const unknown = "unknown";
+
+fn format_uri(allocator: std.mem.Allocator, ip: [4]u8) !std.Uri {
+    const url = try std.fmt.allocPrint(allocator, "{s}{d}.{d}.{d}.{d}?fields=continentCode", .{ IP_API_BASE_URL, ip[0], ip[1], ip[2], ip[3] });
+    return std.Uri.parse(url);
+}
+
 const State = struct {
     /// map of all scopes
     servers: std.AutoHashMapUnmanaged(udptp.network.EndPoint, Server),
 
     /// if the server should stop
     should_stop: bool = false,
+
+    http_client: HttpClient,
 
     allocator: std.mem.Allocator,
 
@@ -27,10 +44,12 @@ const State = struct {
         return .{
             .servers = .{},
             .allocator = allocator,
+            .http_client = .{ .allocator = allocator },
         };
     }
     fn deinit(self: *State) void {
         self.servers.clearAndFree(self.allocator);
+        self.http_client.deinit();
     }
 };
 
@@ -64,8 +83,32 @@ pub fn handle_packet(self: *udptp.Server(State), data: []const u8, sender: udptp
 
     switch (packet.header.packet_type) {
         .host => {
-            const new_server = udptp.deserialize_payload(packet.payload, Server) catch return error.BadInput;
-            try self.ctx.servers.put(self.allocator, sender, new_server);
+            const aggregate = udptp.deserialize_payload(packet.payload, shared.Aggregate) catch return error.BadInput;
+
+            const continent: shared.ContinentCode = blk: {
+                if (self.ctx.servers.get(sender)) |server| {
+                    break :blk server.continent;
+                } else {
+                    var response_buffer: std.ArrayList(u8) = .init(self.allocator);
+                    const uri = format_uri(self.allocator, sender.address.ipv4.value) catch return udptp.PacketError.DeserializationError;
+                    const result = self.ctx.http_client.fetch(.{ .location = .{ .uri = uri }, .response_storage = .{ .dynamic = &response_buffer } }) catch return udptp.PacketError.DeserializationError;
+
+                    if (result.status.class() != .success) {
+                        break :blk .Unknown;
+                    }
+
+                    const json_response = std.json.parseFromSlice(IpLocation, self.allocator, response_buffer.items, .{}) catch null;
+                    const ip_location = if (json_response) |r| r.value else IpLocation{ .continentCode = unknown };
+                    const code = std.meta.stringToEnum(shared.ContinentCode, ip_location.continentCode) orelse .Unknown;
+                    std.log.err("new host from continent: {s}, continent code: {s}", .{ response_buffer.items, @tagName(code) });
+                    if (json_response) |r| r.deinit();
+                    response_buffer.deinit();
+
+                    break :blk code;
+                }
+            };
+
+            try self.ctx.servers.put(self.allocator, sender, .{ .aggregate = aggregate, .continent = continent });
         },
         .join => {
             const join = udptp.deserialize_payload(packet.payload, shared.JoinRequestPayload) catch return error.BadInput;

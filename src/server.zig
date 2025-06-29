@@ -20,7 +20,7 @@ const GameServerContext = struct {
     update_count: u32 = 0,
     finished_count: u32 = 0,
 
-    aggregate: shared.Server = .{ .host_name = to_fixed("zkr player", 16), .num_players = 0, .player_id = 0 },
+    aggregate: shared.Aggregate = .{ .host_name = to_fixed("zkr player", 16), .num_players = 0, .player_id = 0 },
 
     allocator: std.mem.Allocator,
 
@@ -309,9 +309,9 @@ pub const GameServer = struct {
         self.server.send_to(shared.MatchmakingEndpoint, data);
     }
 
-    fn alert_host(self: *Self, server: shared.Server) void {
+    fn alert_host(self: *Self, aggregate: shared.Aggregate) void {
         var buffer: [1024]u8 = undefined;
-        const packet = shared.Packet.init(.host, udptp.serialize_payload(&buffer, server) catch unreachable) catch unreachable;
+        const packet = shared.Packet.init(.host, udptp.serialize_payload(&buffer, aggregate) catch unreachable) catch unreachable;
         const data = packet.serialize(self.allocator) catch unreachable;
         self.send_mm(data);
         self.allocator.free(data);

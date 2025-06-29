@@ -426,13 +426,13 @@ const Gamestate = struct {
                 if (self.frame_count % 140 == 0) self.client.update_servers();
                 self.client.ctx.lock.lockShared();
                 const servers = self.client.get_servers();
-                if (rl.isKeyPressed(.t) and servers.len > 0) {
+                if (rl.isKeyPressed(.e) and servers.len > 0) {
                     self.client.join_server(servers[self.selector]);
                     self.change_state(.Lobby);
                 }
 
-                if (rl.isKeyPressed(.w)) self.selector = self.selector + 1 % servers.len;
-                if (rl.isKeyPressed(.s)) self.selector = self.selector - 1 % servers.len;
+                if (rl.isKeyPressed(.w)) self.selector = (self.selector + servers.len - 1) % servers.len;
+                if (rl.isKeyPressed(.s)) self.selector = (self.selector + 1) % servers.len;
 
                 if (rl.isKeyPressed(.q)) {
                     self.server = .init(self.allocator);
@@ -634,13 +634,37 @@ const Gamestate = struct {
             },
             .Browsing => {
                 self.draw_background();
+                const font_size = 10;
                 self.client.ctx.lock.lockShared();
                 const servers = self.client.get_servers();
-                for (0..servers.len) |i| {
-                    const serv = servers[i].server;
-                    rl.drawText(rl.textFormat("%s %d/12", .{ &serv.host_name, serv.num_players }), 100, 32 + 20 * @as(i32, @intCast(i)), 10, if (self.selector == i) .yellow else .white);
+                if (servers.len > 0) {
+                    var buffer: [512]u8 = undefined;
+                    rl.drawText(rl.textFormat("%-16.16s players region", .{&util.to_fixed("host", 16)}), 100, 12, 10, .yellow);
+                    for (0..servers.len) |i| {
+                        const serv = servers[i].server;
+                        const agg = serv.aggregate;
+                        const color: rl.Color = if (self.selector == i) .yellow else .white;
+                        const i_i: i32 = @intCast(i);
+                        const host_name = rl.textFormat("%-16.16s", .{&agg.host_name});
+                        const num_players = rl.textFormat("%d/12", .{agg.num_players});
+
+                        const server_row = std.fmt.bufPrintZ(&buffer, "{s: <16} {s: <7} {s}", .{ host_name, num_players, @tagName(serv.continent) }) catch unreachable;
+
+                        rl.drawText(server_row, 100, 32 + 20 * i_i, font_size, color);
+                        rl.drawLine(100, 32 + 20 * i_i + font_size, 220, 32 + 20 * i_i + font_size, color);
+                    }
+
+                    const text = "'e' to join selected server";
+                    const text_size = rl.measureText(text, font_size);
+                    rl.drawText(text, shared.RENDER_WIDTH - text_size, shared.RENDER_HEIGHT - font_size * 2, font_size, .ray_white);
+                } else {
+                    rl.drawText("no servers are online :(", 10, 10, font_size, .ray_white);
                 }
                 self.client.ctx.lock.unlockShared();
+
+                const text = "'q' to host a server!";
+                const text_size = rl.measureText(text, font_size);
+                rl.drawText(text, shared.RENDER_WIDTH - text_size, shared.RENDER_HEIGHT - font_size * 1, font_size, .ray_white);
             },
             .Lobby => {
                 self.draw_background();
@@ -695,22 +719,22 @@ const Gamestate = struct {
                 rl.drawText(rl.textFormat(if (state.is_writing) "name: %s_" else "name: %s", .{&current_settings.player_name}), 0, 2 * font_size, font_size, if (self.selector == 2) .yellow else .white);
 
                 {
-                    const text = rl.textFormat("'q' to save and go back to main menu", .{});
+                    const text = "'q' to save and go back to main menu";
                     const text_size = rl.measureText(text, font_size);
                     rl.drawText(text, shared.RENDER_WIDTH - text_size, shared.RENDER_HEIGHT - font_size, font_size, .ray_white);
                 }
                 if (self.selector == 0) {
-                    const text = rl.textFormat("'a' and 'd' to adjust sound volume", .{});
+                    const text = "'a' and 'd' to adjust sound volume";
                     const text_size = rl.measureText(text, font_size);
                     rl.drawText(text, shared.RENDER_WIDTH - text_size, shared.RENDER_HEIGHT - font_size * 2, font_size, .ray_white);
                 }
                 if (self.selector == 1) {
-                    const text = rl.textFormat("'a' and 'd' to adjust music volume", .{});
+                    const text = "'a' and 'd' to adjust music volume";
                     const text_size = rl.measureText(text, font_size);
                     rl.drawText(text, shared.RENDER_WIDTH - text_size, shared.RENDER_HEIGHT - font_size * 2, font_size, .ray_white);
                 }
                 if (self.selector == 2) {
-                    const text = rl.textFormat("'e' change name 'enter' to confirm", .{});
+                    const text = "'e' change name 'enter' to confirm";
                     const text_size = rl.measureText(text, font_size);
                     rl.drawText(text, shared.RENDER_WIDTH - text_size, shared.RENDER_HEIGHT - font_size * 2, font_size, .ray_white);
                 }
