@@ -5,6 +5,8 @@ const renderer = @import("renderer.zig");
 const entity = @import("entity.zig");
 const level = @import("level.zig");
 
+const builtin = @import("builtin");
+
 const prefab = @import("prefabs.zig");
 const Tracks = @import("tracks.zig").Tracks;
 const Particles = @import("particles.zig").Particles;
@@ -93,6 +95,7 @@ const State = union(enum) {
     },
     Browsing,
     Lobby,
+    MainMenu,
     Settings: struct {
         is_writing: bool = false,
         name_len: usize = 0,
@@ -162,7 +165,7 @@ const Gamestate = struct {
             .client = cli,
             .sfx = sfx,
 
-            .state = .{ .Settings = .{} },
+            .state = .MainMenu,
 
             .allocator = allocator,
         };
@@ -368,6 +371,15 @@ const Gamestate = struct {
                 self.selector = 0;
                 self.ready = false;
             },
+            .MainMenu => {
+                self.selector = 0;
+                self.ready = false;
+                if (self.server) |*s| {
+                    s.stop();
+                    s.deinit();
+                    self.server = null;
+                }
+            },
         }
 
         self.state = new_state;
@@ -434,7 +446,7 @@ const Gamestate = struct {
                 if (rl.isKeyPressed(.w)) self.selector = (self.selector + servers.len - 1) % servers.len;
                 if (rl.isKeyPressed(.s)) self.selector = (self.selector + 1) % servers.len;
 
-                if (rl.isKeyPressed(.q)) {
+                if (rl.isKeyPressed(.h)) {
                     self.server = .init(self.allocator);
                     if (self.server) |*s| {
                         const current_settings = settings.get();
@@ -444,10 +456,10 @@ const Gamestate = struct {
                     }
                 }
 
-                if (rl.isKeyPressed(.h)) {
-                    self.change_state(.{ .Playing = .offline });
-                    self.start_time = std.time.milliTimestamp();
+                if (rl.isKeyPressed(.q)) {
+                    self.change_state(.MainMenu);
                 }
+
                 self.client.ctx.lock.unlockShared();
             },
             .Lobby => {
@@ -542,8 +554,28 @@ const Gamestate = struct {
                         user_settings_copy.save(self.allocator) catch |err| std.log.err("couldnt save settings! {}", .{err});
                         rl.setMasterVolume(settings.get().sound_volume);
                         self.name = settings.get().player_name;
-                        self.change_state(.Browsing);
+                        self.change_state(.MainMenu);
                     }
+                }
+            },
+            .MainMenu => {
+                // - server_browser
+                // - settings
+                const amount_of_user_settings = 2;
+                if (rl.isKeyPressed(.w)) self.selector = (self.selector + amount_of_user_settings - 1) % amount_of_user_settings;
+                if (rl.isKeyPressed(.s)) self.selector = (self.selector + 1) % amount_of_user_settings;
+
+                if (rl.isKeyPressed(.e)) {
+                    switch (self.selector) {
+                        0 => self.change_state(.Browsing),
+                        1 => self.change_state(.{ .Settings = .{} }),
+                        else => {},
+                    }
+                }
+
+                if (builtin.mode == .Debug and rl.isKeyPressed(.h)) {
+                    self.change_state(.{ .Playing = .offline });
+                    self.start_time = std.time.milliTimestamp();
                 }
             },
         }
@@ -656,15 +688,16 @@ const Gamestate = struct {
 
                     const text = "'e' to join selected server";
                     const text_size = rl.measureText(text, font_size);
-                    rl.drawText(text, shared.RENDER_WIDTH - text_size, shared.RENDER_HEIGHT - font_size * 2, font_size, .ray_white);
+                    rl.drawText(text, shared.RENDER_WIDTH - text_size, shared.RENDER_HEIGHT - font_size * 3, font_size, .ray_white);
                 } else {
                     rl.drawText("no servers are online :(", 10, 10, font_size, .ray_white);
                 }
                 self.client.ctx.lock.unlockShared();
 
-                const text = "'q' to host a server!";
-                const text_size = rl.measureText(text, font_size);
-                rl.drawText(text, shared.RENDER_WIDTH - text_size, shared.RENDER_HEIGHT - font_size * 1, font_size, .ray_white);
+                inline for ([_][:0]const u8{ "'h' to host a server!", "'q' to exit to main menu" }, 1..) |text, i| {
+                    const text_size = rl.measureText(text, font_size);
+                    rl.drawText(text, shared.RENDER_WIDTH - text_size, shared.RENDER_HEIGHT - font_size * i, font_size, .ray_white);
+                }
             },
             .Lobby => {
                 self.draw_background();
@@ -738,6 +771,16 @@ const Gamestate = struct {
                     const text_size = rl.measureText(text, font_size);
                     rl.drawText(text, shared.RENDER_WIDTH - text_size, shared.RENDER_HEIGHT - font_size * 2, font_size, .ray_white);
                 }
+            },
+            .MainMenu => {
+                self.draw_background();
+                const font_size = 10;
+                rl.drawText("server browser", 100, 100 + 0 * font_size, font_size, if (self.selector == 0) .yellow else .white);
+                rl.drawText("settings", 100, 100 + 1 * font_size, font_size, if (self.selector == 1) .yellow else .white);
+
+                const text = "'e' to select";
+                const text_size = rl.measureText(text, font_size);
+                rl.drawText(text, shared.RENDER_WIDTH - text_size, shared.RENDER_HEIGHT - font_size, font_size, .ray_white);
             },
         }
     }
