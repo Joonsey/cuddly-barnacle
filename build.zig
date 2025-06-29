@@ -36,6 +36,12 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const mm_mod = b.createModule(.{
+        .root_source_file = b.path("src/matchmaker.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     // This creates another `std.Build.Step.Compile`, but this one builds an executable
     // rather than a static library.
     const exe = b.addExecutable(.{
@@ -46,6 +52,11 @@ pub fn build(b: *std.Build) void {
     const editor = b.addExecutable(.{
         .name = "editor",
         .root_module = editor_exe_mod,
+    });
+
+    const matchmaker = b.addExecutable(.{
+        .name = "matchmaker",
+        .root_module = mm_mod,
     });
 
     exe.linkLibrary(raylib_artifact);
@@ -62,17 +73,25 @@ pub fn build(b: *std.Build) void {
     editor.root_module.addImport("raylib", raylib);
     editor.root_module.addImport("raygui", raygui);
 
+    matchmaker.linkLibrary(raylib_artifact);
+    matchmaker.root_module.addImport("raylib", raylib);
+    matchmaker.root_module.addImport("raygui", raygui);
+
+    matchmaker.root_module.addImport("udptp", udptp_lib.module("udptp"));
+
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
     // step when running `zig build`).
     b.installArtifact(exe);
     b.installArtifact(editor);
+    b.installArtifact(matchmaker);
 
     // This *creates* a Run step in the build graph, to be executed when another
     // step is evaluated that depends on it. The next line below will establish
     // such a dependency.
     const run_cmd = b.addRunArtifact(exe);
     const editor_cmd = b.addRunArtifact(editor);
+    const matchmaker_cmd = b.addRunArtifact(matchmaker);
 
     // By making the run step depend on the install step, it will be run from the
     // installation directory rather than directly from within the cache directory.
@@ -80,12 +99,14 @@ pub fn build(b: *std.Build) void {
     // files, this ensures they will be present and in the expected location.
     run_cmd.step.dependOn(b.getInstallStep());
     editor_cmd.step.dependOn(b.getInstallStep());
+    matchmaker_cmd.step.dependOn(b.getInstallStep());
 
     // This allows the user to pass arguments to the application in the build
     // command itself, like this: `zig build run -- arg1 arg2 etc`
     if (b.args) |args| {
         run_cmd.addArgs(args);
         editor_cmd.addArgs(args);
+        matchmaker_cmd.addArgs(args);
     }
 
     // This creates a build step. It will be visible in the `zig build --help` menu,
@@ -97,6 +118,9 @@ pub fn build(b: *std.Build) void {
     const editor_step = b.step("editor", "Run the editor");
     editor_step.dependOn(&editor_cmd.step);
 
+    const matchmaker_step = b.step("matchmaker", "Run the matchmaking server");
+    matchmaker_step.dependOn(&matchmaker_cmd.step);
+
     const exe_unit_tests = b.addTest(.{
         .root_module = exe_mod,
     });
@@ -104,8 +128,13 @@ pub fn build(b: *std.Build) void {
         .root_module = exe_mod,
     });
 
+    const mm_unit_tests = b.addTest(.{
+        .root_module = mm_mod,
+    });
+
     const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
     const editor_run_exe_unit_tests = b.addRunArtifact(editor_exe_unit_tests);
+    const mm_exe_unit_tests = b.addRunArtifact(mm_unit_tests);
 
     // Similar to creating the run step earlier, this exposes a `test` step to
     // the `zig build --help` menu, providing a way for the user to request
@@ -113,4 +142,5 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_exe_unit_tests.step);
     test_step.dependOn(&editor_run_exe_unit_tests.step);
+    test_step.dependOn(&mm_exe_unit_tests.step);
 }

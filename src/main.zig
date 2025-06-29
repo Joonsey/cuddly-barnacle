@@ -122,7 +122,6 @@ const Gamestate = struct {
     selected_prefab: prefab.Prefab = .car_base,
 
     server: ?server.GameServer = null,
-    room: ?client.Room = null,
 
     allocator: std.mem.Allocator,
     const Self = @This();
@@ -359,7 +358,6 @@ const Gamestate = struct {
             .Browsing => {
                 self.selector = 0;
                 self.ready = false;
-                self.room = null;
                 if (self.server) |*s| {
                     s.stop();
                     s.deinit();
@@ -425,21 +423,22 @@ const Gamestate = struct {
                 }
             },
             .Browsing => {
-                if (self.frame_count % 140 == 0) self.client.update_rooms();
+                if (self.frame_count % 140 == 0) self.client.update_servers();
                 self.client.ctx.lock.lockShared();
-                const rooms = self.client.get_rooms();
-                if (rl.isKeyPressed(.t) and rooms.len > 0) {
-                    self.client.join_room(rooms[self.selector]);
+                const servers = self.client.get_servers();
+                if (rl.isKeyPressed(.t) and servers.len > 0) {
+                    self.client.join_server(servers[self.selector]);
                     self.change_state(.Lobby);
                 }
 
-                if (rl.isKeyPressed(.w)) self.selector = self.selector + 1 % rooms.len;
-                if (rl.isKeyPressed(.s)) self.selector = self.selector - 1 % rooms.len;
+                if (rl.isKeyPressed(.w)) self.selector = self.selector + 1 % servers.len;
+                if (rl.isKeyPressed(.s)) self.selector = self.selector - 1 % servers.len;
 
                 if (rl.isKeyPressed(.q)) {
                     self.server = .init(self.allocator);
                     if (self.server) |*s| {
-                        s.start();
+                        const current_settings = settings.get();
+                        s.start(current_settings.player_id, current_settings.player_name);
                         self.client.join(shared.LOCALHOST_IP, shared.SERVER_PORT);
                         self.change_state(.Lobby);
                     }
@@ -636,10 +635,10 @@ const Gamestate = struct {
             .Browsing => {
                 self.draw_background();
                 self.client.ctx.lock.lockShared();
-                const rooms = self.client.get_rooms();
-                for (0..rooms.len) |i| {
-                    const room = rooms[i];
-                    rl.drawText(rl.textFormat("%6.6s %d/%d", .{ &room.name, room.users, room.capacity }), 100, 32 + 20 * @as(i32, @intCast(i)), 10, if (self.selector == i) .yellow else .white);
+                const servers = self.client.get_servers();
+                for (0..servers.len) |i| {
+                    const serv = servers[i].server;
+                    rl.drawText(rl.textFormat("%s %d/12", .{ &serv.host_name, serv.num_players }), 100, 32 + 20 * @as(i32, @intCast(i)), 10, if (self.selector == i) .yellow else .white);
                 }
                 self.client.ctx.lock.unlockShared();
             },
@@ -753,7 +752,7 @@ pub fn main() !void {
     rl.setMasterVolume(user_settings.sound_volume);
 
     state.client.start();
-    state.client.update_rooms();
+    state.client.update_servers();
 
     const scene = try rl.loadRenderTexture(RENDER_WIDTH, RENDER_HEIGHT);
 

@@ -6,8 +6,6 @@ const shared = @import("shared.zig");
 const entity = @import("entity.zig");
 const prefab = @import("prefabs.zig");
 
-pub const Room = shared.Room;
-
 const GameClientContext = struct {
     num_players: usize = 0,
     updates: [shared.MAX_PLAYERS]shared.SyncPacket,
@@ -17,7 +15,7 @@ const GameClientContext = struct {
 
     own_player_id: shared.PlayerId = 0,
 
-    rooms: std.ArrayListUnmanaged(shared.Room),
+    servers: std.ArrayListUnmanaged(shared.ServerSync),
     players_who_have_completed: std.ArrayListUnmanaged(shared.Finish) = .{},
 
     items_to_spawn: std.ArrayListUnmanaged(shared.MissileSpawn) = .{},
@@ -32,13 +30,13 @@ const GameClientContext = struct {
             .updates = undefined,
             .ready_check = undefined,
             .server_state = .{ .state = .Lobby, .ctx = .{ .time = 0 } },
-            .rooms = .{},
+            .servers = .{},
             .lock = .{},
         };
     }
 
     pub fn deinit(self: *Self) void {
-        self.rooms.deinit(self.allocator);
+        self.servers.deinit(self.allocator);
         self.players_who_have_completed.deinit(self.allocator);
         self.items_to_spawn.deinit(self.allocator);
     }
@@ -76,15 +74,15 @@ fn handle_packet(self: *GameClientType, data: []const u8, sender: udptp.network.
             ctx.lock.unlockShared();
         },
         .ret_host_list => {
-            const payload_individual_size = @sizeOf(shared.Room);
+            const payload_individual_size = @sizeOf(shared.ServerSync);
             const c = packet.header.payload_size / payload_individual_size;
 
             // potential memory desync here
             ctx.lock.lockShared();
-            self.ctx.rooms.clearRetainingCapacity();
+            self.ctx.servers.clearRetainingCapacity();
             for (0..c) |i| {
-                const room = try udptp.deserialize_payload(packet.payload[i * payload_individual_size .. (i + 1) * payload_individual_size], shared.Room);
-                try self.ctx.rooms.append(self.allocator, room);
+                const server = try udptp.deserialize_payload(packet.payload[i * payload_individual_size .. (i + 1) * payload_individual_size], shared.ServerSync);
+                try self.ctx.servers.append(self.allocator, server);
             }
             ctx.lock.unlockShared();
         },
@@ -209,9 +207,8 @@ pub const GameClient = struct {
         defer self.allocator.free(data);
     }
 
-    pub fn update_rooms(self: *Self) void {
-        var buffer: [512]u8 = undefined;
-        const packet = shared.Packet.init(.req_host_list, udptp.serialize_payload(&buffer, shared.RequestRooms{ .scope = shared.SCOPE }) catch unreachable) catch unreachable;
+    pub fn update_servers(self: *Self) void {
+        const packet = shared.Packet.init(.req_host_list, "") catch unreachable;
         const data = packet.serialize(self.allocator) catch unreachable;
         self.send_mm(data);
         self.allocator.free(data);
@@ -221,14 +218,14 @@ pub const GameClient = struct {
         self.client.sendto(shared.MatchmakingEndpoint, data);
     }
 
-    pub fn join_room(self: *Self, room: shared.Room) void {
+    pub fn join_server(self: *Self, server: shared.ServerSync) void {
         var buffer: [512]u8 = undefined;
-        const mm_packet = shared.Packet.init(.join, udptp.serialize_payload(&buffer, shared.JoinPayload{ .scope = shared.SCOPE, .key = room.name }) catch unreachable) catch unreachable;
+        const mm_packet = shared.Packet.init(.join, udptp.serialize_payload(&buffer, server.host_addr) catch unreachable) catch unreachable;
         const mm_data = mm_packet.serialize(self.allocator) catch unreachable;
         defer self.allocator.free(mm_data);
 
         self.send_mm(mm_data);
-        self.join(room.ip, room.port);
+        self.join(server.host_addr.ip, server.host_addr.port);
     }
 
     pub fn join(self: *Self, ip: [4]u8, port: u16) void {
@@ -241,8 +238,8 @@ pub const GameClient = struct {
         self.client.send(data);
     }
 
-    pub fn get_rooms(self: Self) []shared.Room {
-        return self.ctx.rooms.items;
+    pub fn get_servers(self: Self) []shared.ServerSync {
+        return self.ctx.servers.items;
     }
 
     pub fn sync(self: *Self, ecs: *entity.ECS) void {

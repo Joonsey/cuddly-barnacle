@@ -20,6 +20,8 @@ const GameServerContext = struct {
     update_count: u32 = 0,
     finished_count: u32 = 0,
 
+    aggregate: shared.Server = .{ .host_name = to_fixed("zkr player", 16), .num_players = 0, .player_id = 0 },
+
     allocator: std.mem.Allocator,
 
     const Self = @This();
@@ -107,12 +109,12 @@ pub fn handle_packet_cb(self: *GameServerType, data: []const u8, sender: udptp.n
                 ctx.updates[player.index] = .{ .id = player.id, .update = payload };
             }
         },
-        .review_request => {
-            const payload = try udptp.deserialize_payload(packet.payload, shared.ReviewResponsePayload);
-            const response_packet = shared.Packet.init(.ack, "zigkartracing") catch unreachable;
+        .join => {
+            const join_request = try udptp.deserialize_payload(packet.payload, shared.JoinRequestPayload);
+            const response_packet = shared.Packet.init(.ack, "zigkartracing!!") catch unreachable;
             const response_data = response_packet.serialize(ctx.allocator) catch unreachable;
             defer self.allocator.free(response_data);
-            self.send_to(.{ .address = .{ .ipv4 = .{ .value = payload.join_request.ip } }, .port = payload.join_request.port }, response_data);
+            self.send_to(.{ .address = .{ .ipv4 = .{ .value = join_request.ip } }, .port = join_request.port }, response_data);
         },
         .lobby_update => {
             if (ctx.players.get(sender)) |player| {
@@ -204,10 +206,7 @@ pub const GameServer = struct {
     }
 
     fn matchmaking_keepalive(self: *Self) void {
-        const packet = shared.Packet.init(.keepalive, "peep") catch unreachable;
-        const data = packet.serialize(self.allocator) catch unreachable;
-        self.send_mm(data);
-        self.allocator.free(data);
+        self.alert_host(self.ctx.aggregate);
     }
 
     fn update_state(self: *Self) void {
@@ -254,7 +253,7 @@ pub const GameServer = struct {
 
         if (previous_state == self.ctx.state.state) return;
         switch (self.ctx.state.state) {
-            .Lobby => self.alert_host("GAME2"),
+            .Lobby => self.alert_host(self.ctx.aggregate),
             .Finishing => self.ctx.state.ctx.time = std.time.milliTimestamp() + std.time.ms_per_s * shared.TIME_TO_FINISH_S,
             .Playing, .Starting => {},
         }
@@ -282,6 +281,7 @@ pub const GameServer = struct {
     fn listen(self: *Self) void {
         while (!self.should_quit) {
             self.ctx.update_count += 1;
+            self.ctx.aggregate.num_players = self.ctx.num_players;
             switch (self.ctx.state.state) {
                 .Lobby, .Starting => {
                     if (self.ctx.update_count % 500 == 0) {
@@ -309,12 +309,9 @@ pub const GameServer = struct {
         self.server.send_to(shared.MatchmakingEndpoint, data);
     }
 
-    fn alert_host(self: *Self, name: []const u8) void {
+    fn alert_host(self: *Self, server: shared.Server) void {
         var buffer: [1024]u8 = undefined;
-        const packet = shared.Packet.init(.host, udptp.serialize_payload(&buffer, shared.HostPayload{
-            .q = .{ .scope = shared.SCOPE, .key = to_fixed(name, 32) },
-            .policy = .AutoAccept,
-        }) catch unreachable) catch unreachable;
+        const packet = shared.Packet.init(.host, udptp.serialize_payload(&buffer, server) catch unreachable) catch unreachable;
         const data = packet.serialize(self.allocator) catch unreachable;
         self.send_mm(data);
         self.allocator.free(data);
@@ -328,8 +325,11 @@ pub const GameServer = struct {
         std.log.debug("server closed", .{});
     }
 
-    pub fn start(self: *Self) void {
-        self.alert_host("GAME1");
+    pub fn start(self: *Self, player_id: shared.PlayerId, name: [16]u8) void {
+        self.ctx.aggregate.host_name = name;
+        self.ctx.aggregate.player_id = player_id;
+        self.ctx.aggregate.num_players = 1;
+        self.alert_host(self.ctx.aggregate);
         self.server.set_read_timeout(1000);
 
         self.server_thread = std.Thread.spawn(.{}, Self.listen, .{self}) catch unreachable;
