@@ -393,9 +393,11 @@ pub const ECS = struct {
                     } else if (a.archetype == .Missile and b.archetype == .Car) {
                         kill(a);
                         b.spinout = .{ .original_rotation = b.transform.?.rotation };
+                        if (b.drift) |_| b.drift = .{};
                     } else if (b.archetype == .Missile and a.archetype == .Car) {
                         kill(b);
                         a.spinout = .{ .original_rotation = a.transform.?.rotation };
+                        if (a.drift) |_| a.drift = .{};
                     } else if (b.archetype == .Missile) {
                         kill(b);
                     } else if (a.archetype == .Missile) {
