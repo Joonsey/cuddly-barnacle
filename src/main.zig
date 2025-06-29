@@ -22,6 +22,8 @@ var WINDOW_HEIGHT: i32 = 860;
 const RENDER_WIDTH = shared.RENDER_WIDTH;
 const RENDER_HEIGHT = shared.RENDER_HEIGHT;
 
+const select_color: rl.Color = .red;
+
 const Inventory = struct {
     item: ?prefab.Item,
     prng: std.Random.DefaultPrng,
@@ -671,11 +673,11 @@ const Gamestate = struct {
                 const servers = self.client.get_servers();
                 if (servers.len > 0) {
                     var buffer: [512]u8 = undefined;
-                    rl.drawText(rl.textFormat("%-16.16s players region", .{&util.to_fixed("host", 16)}), 100, 12, 10, .yellow);
+                    rl.drawText(rl.textFormat("%-16.16s players region", .{&util.to_fixed("host", 16)}), 100, 12, 10, select_color);
                     for (0..servers.len) |i| {
                         const serv = servers[i].server;
                         const agg = serv.aggregate;
-                        const color: rl.Color = if (self.selector == i) .yellow else .white;
+                        const color: rl.Color = if (self.selector == i) select_color else .white;
                         const i_i: i32 = @intCast(i);
                         const host_name = rl.textFormat("%-16.16s", .{&agg.host_name});
                         const num_players = rl.textFormat("%d/12", .{agg.num_players});
@@ -747,9 +749,9 @@ const Gamestate = struct {
 
                 const current_settings = settings.get();
                 const font_size = 10;
-                rl.drawText(rl.textFormat("sound volume: %.2f", .{current_settings.sound_volume}), 0, 0 * font_size, font_size, if (self.selector == 0) .yellow else .white);
-                rl.drawText(rl.textFormat("music volume: %.2f", .{current_settings.music_volume}), 0, 1 * font_size, font_size, if (self.selector == 1) .yellow else .white);
-                rl.drawText(rl.textFormat(if (state.is_writing) "name: %s_" else "name: %s", .{&current_settings.player_name}), 0, 2 * font_size, font_size, if (self.selector == 2) .yellow else .white);
+                rl.drawText(rl.textFormat("sound volume: %.2f", .{current_settings.sound_volume}), 0, 0 * font_size, font_size, if (self.selector == 0) select_color else .white);
+                rl.drawText(rl.textFormat("music volume: %.2f", .{current_settings.music_volume}), 0, 1 * font_size, font_size, if (self.selector == 1) select_color else .white);
+                rl.drawText(rl.textFormat(if (state.is_writing) "name: %s_" else "name: %s", .{&current_settings.player_name}), 0, 2 * font_size, font_size, if (self.selector == 2) select_color else .white);
 
                 {
                     const text = "'q' to save and go back to main menu";
@@ -775,8 +777,8 @@ const Gamestate = struct {
             .MainMenu => {
                 self.draw_background();
                 const font_size = 10;
-                rl.drawText("server browser", 100, 100 + 0 * font_size, font_size, if (self.selector == 0) .yellow else .white);
-                rl.drawText("settings", 100, 100 + 1 * font_size, font_size, if (self.selector == 1) .yellow else .white);
+                rl.drawText("server browser", 100, 100 + 0 * font_size, font_size, if (self.selector == 0) select_color else .white);
+                rl.drawText("settings", 100, 100 + 1 * font_size, font_size, if (self.selector == 1) select_color else .white);
 
                 const text = "'e' to select";
                 const text_size = rl.measureText(text, font_size);
