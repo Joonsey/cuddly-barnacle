@@ -106,6 +106,28 @@ pub const RaceContext = extern struct {
     checkpoint: usize = 0,
 };
 
+pub const FlatParticle = struct {
+    velocity: rl.Vector2,
+};
+
+pub const StackedParticle = struct {
+    weight: f32 = -10,
+};
+
+pub const ParticleKind = union(enum) {
+    Flat: FlatParticle,
+    Stacked: StackedParticle,
+};
+
+pub const ParticleEmitter = struct {
+    kind: ParticleKind,
+    interval: f32 = 0.25,
+    current: f32 = 2,
+    lifetime: f32 = 2,
+    color: rl.Color = .dark_gray,
+    direction: rl.Vector2,
+};
+
 pub const DriftStage = enum(u8) {
     none,
     Mini,
@@ -162,16 +184,19 @@ pub const Kinetic = extern struct {
     friction: f32 = 0.8,
     speed_multiplier: f32 = 1,
     weight: f32 = 40,
-    traction: level.Traction,
+    traction: level.Traction = .Track,
 };
 
 pub const Archetype = enum {
     None,
+    Dead,
     Car,
     Obstacle,
     Missile,
     Wall,
     ItemBox,
+    Particle,
+    ParticleEmitter,
 };
 
 pub const Timer = struct {
@@ -227,6 +252,7 @@ pub const Entity = struct {
     name_tag: ?NameTag = null,
     target: ?Target = null,
     spinout: ?Spinout = null,
+    particle_emitter: ?ParticleEmitter = null,
 
     const Self = @This();
     pub fn update(self: *Self, deltatime: f32) ?Event {
@@ -328,6 +354,7 @@ pub const ECS = struct {
     entities: std.ArrayListUnmanaged(Entity),
     events: std.ArrayListUnmanaged(Event),
     next_id: EntityId = 0,
+    recycle_array: std.ArrayListUnmanaged(EntityId),
 
     event_listeners: std.ArrayListUnmanaged(Observer),
 
@@ -338,6 +365,7 @@ pub const ECS = struct {
         return .{
             .entities = .{},
             .events = .{},
+            .recycle_array = .{},
             .allocator = allocator,
             .event_listeners = .{},
         };
@@ -391,17 +419,17 @@ pub const ECS = struct {
                         a_kinetic.velocity = a_kinetic.velocity.subtract(impulse);
                         b_kinetic.velocity = b_kinetic.velocity.add(impulse);
                     } else if (a.archetype == .Missile and b.archetype == .Car) {
-                        kill(a);
+                        self.kill(col.a);
                         b.spinout = .{ .original_rotation = b.transform.?.rotation };
                         if (b.drift) |_| b.drift = .{};
                     } else if (b.archetype == .Missile and a.archetype == .Car) {
-                        kill(b);
+                        self.kill(col.b);
                         a.spinout = .{ .original_rotation = a.transform.?.rotation };
                         if (a.drift) |_| a.drift = .{};
                     } else if (b.archetype == .Missile) {
-                        kill(b);
+                        self.kill(col.b);
                     } else if (a.archetype == .Missile) {
-                        kill(a);
+                        self.kill(col.a);
                     }
                 },
                 .Finish => |fin| {
@@ -541,53 +569,69 @@ pub const ECS = struct {
                         }
                     }
                 }
+
+                if (entity.particle_emitter) |*pe| {
+                    if (pe.current == 0) pe.current = pe.interval;
+                    pe.current = @max(pe.current - deltatime, 0);
+                }
             }
 
-            if (entity.archetype == .ItemBox) {
-                if (entity.transform) |*transform| {
-                    const abs_time_offset: f32 = @floatCast(rl.getTime() + @as(f64, @floatFromInt(i)));
-                    transform.height = 5 + 10 * @abs(@sin(abs_time_offset));
-                    transform.rotation = 0.25 * abs_time_offset + @as(f32, @floatFromInt(i));
-                }
-                if (entity.timer) |timer| {
-                    if (timer.timer <= 0) {
-                        const ref = prefab.get(.itembox);
-                        entity.renderable = ref.renderable;
-                        entity.collision = ref.collision;
-                        entity.timer = null;
+            switch (entity.archetype) {
+                .ItemBox => {
+                    if (entity.transform) |*transform| {
+                        const abs_time_offset: f32 = @floatCast(rl.getTime() + @as(f64, @floatFromInt(i)));
+                        transform.height = 5 + 10 * @abs(@sin(abs_time_offset));
+                        transform.rotation = 0.25 * abs_time_offset + @as(f32, @floatFromInt(i));
                     }
-                }
-            } else if (entity.archetype == .Missile) {
-                if (entity.timer) |timer| {
-                    if (timer.timer <= 0) {
-                        entity.collision = .{ .x = 0, .y = 0, .width = 16, .height = 16 };
-                        entity.timer = null;
+                    if (entity.timer) |timer| {
+                        if (timer.timer <= 0) {
+                            const ref = prefab.get(.itembox);
+                            entity.renderable = ref.renderable;
+                            entity.collision = ref.collision;
+                            entity.timer = null;
+                        }
                     }
-                }
-                if (entity.target) |target_component| {
-                    const speed = 200;
-                    const target_entity = self.get(target_component.id);
-                    if (entity.kinetic) |*kinetic| {
-                        if (entity.transform) |*transform| {
-                            if (entity.race_context) |missile_rc| {
-                                if (target_entity.race_context) |target_rc| {
-                                    if (missile_rc.checkpoint == target_rc.checkpoint) {
-                                        // travel towards target
-                                        if (target_entity.transform) |target_transform| {
-                                            update_velocity_with_rotation_constraint(transform, kinetic, target_transform.position, speed, 1 * deltatime);
-                                        }
-                                    } else {
-                                        // travel towards next checkpoint
-                                        const next_expected_checkpoint_idx = (missile_rc.checkpoint + 1) % lvl.checkpoints.len;
-                                        const next_expected_checkpoint = lvl.checkpoints[next_expected_checkpoint_idx];
+                },
+                .Particle => {
+                    if (entity.timer) |timer| {
+                        if (timer.timer <= 0) {
+                            self.kill(@intCast(i));
+                        }
+                    }
+                },
+                .Missile => {
+                    if (entity.timer) |timer| {
+                        if (timer.timer <= 0) {
+                            entity.collision = .{ .x = 0, .y = 0, .width = 16, .height = 16 };
+                            entity.timer = null;
+                        }
+                    }
+                    if (entity.target) |target_component| {
+                        const speed = 200;
+                        const target_entity = self.get(target_component.id);
+                        if (entity.kinetic) |*kinetic| {
+                            if (entity.transform) |*transform| {
+                                if (entity.race_context) |missile_rc| {
+                                    if (target_entity.race_context) |target_rc| {
+                                        if (missile_rc.checkpoint == target_rc.checkpoint) {
+                                            // travel towards target
+                                            if (target_entity.transform) |target_transform| {
+                                                update_velocity_with_rotation_constraint(transform, kinetic, target_transform.position, speed, 1 * deltatime);
+                                            }
+                                        } else {
+                                            // travel towards next checkpoint
+                                            const next_expected_checkpoint_idx = (missile_rc.checkpoint + 1) % lvl.checkpoints.len;
+                                            const next_expected_checkpoint = lvl.checkpoints[next_expected_checkpoint_idx];
 
-                                        update_velocity_with_rotation_constraint(transform, kinetic, next_expected_checkpoint.position, speed, 1 * deltatime);
+                                            update_velocity_with_rotation_constraint(transform, kinetic, next_expected_checkpoint.position, speed, 1 * deltatime);
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                }
+                },
+                else => {},
             }
         }
 
@@ -603,7 +647,9 @@ pub const ECS = struct {
         for (array.items) |entity| entity.draw(camera);
     }
 
-    pub fn kill(entity: *Entity) void {
+    pub fn kill(self: *Self, id: EntityId) void {
+        const entity = self.get_mut(id);
+        entity.archetype = .Dead;
         entity.boost = null;
         entity.collision = null;
         entity.controller = null;
@@ -617,12 +663,21 @@ pub const ECS = struct {
         entity.target = null;
         entity.timer = null;
         entity.transform = null;
+
+        self.recycle_array.append(self.allocator, id) catch unreachable;
     }
 
     pub fn spawn(self: *Self, entity: Entity) EntityId {
-        self.entities.append(self.allocator, entity) catch unreachable;
-        defer self.next_id += 1;
-        return self.next_id;
+        if (self.recycle_array.pop()) |id| {
+            std.debug.assert(self.entities.items.len > id);
+            std.debug.assert(self.entities.items[id].archetype == .Dead);
+            self.entities.items[id] = entity;
+            return id;
+        } else {
+            self.entities.append(self.allocator, entity) catch unreachable;
+            defer self.next_id += 1;
+            return self.next_id;
+        }
     }
 
     pub fn despawn(self: *Self, id: EntityId) void {
@@ -642,6 +697,7 @@ pub const ECS = struct {
         self.events.deinit(self.allocator);
         self.entities.deinit(self.allocator);
         self.event_listeners.deinit(self.allocator);
+        self.recycle_array.deinit(self.allocator);
     }
 };
 

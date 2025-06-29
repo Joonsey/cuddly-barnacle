@@ -423,7 +423,7 @@ const Gamestate = struct {
                 self.ecs.update(deltatime, self.level);
                 self.level.update_intermediate_texture(self.camera.*);
                 self.tracks.update(self.ecs);
-                self.particles.update(deltatime, self.ecs.*);
+                self.particles.update(deltatime, self.ecs);
 
                 self.show_leaderboard = rl.isKeyDown(.tab);
 

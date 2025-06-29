@@ -7,6 +7,7 @@ const level = @import("level.zig");
 const Checkpoint = @import("level.zig").Checkpoint;
 const Finish = @import("level.zig").Finish;
 const util = @import("util.zig");
+const Particles = @import("particles.zig").Particles;
 
 const prefab = @import("prefabs.zig");
 const shared = @import("shared.zig");
@@ -193,21 +194,15 @@ const Selected = union(enum) {
                 }
 
                 if (rl.isKeyPressed(.z) and !rl.isKeyDown(.left_control)) {
-                    const prev = state.iterator.previous();
-                    e.collision = prev.collision;
-                    e.renderable = prev.renderable;
-                    e.archetype = prev.archetype;
-                    e.shadow = prev.shadow;
-                    e.prefab = prev.prefab;
+                    var prev = state.iterator.previous();
+                    prev.transform = e.transform;
+                    e.* = prev;
                 }
 
                 if (rl.isKeyPressed(.x) and !rl.isKeyDown(.left_control)) {
-                    const next = state.iterator.next();
-                    e.collision = next.collision;
-                    e.renderable = next.renderable;
-                    e.archetype = next.archetype;
-                    e.shadow = next.shadow;
-                    e.prefab = next.prefab;
+                    var next = state.iterator.next();
+                    next.transform = e.transform;
+                    e.* = next;
                 }
 
                 if (rl.isMouseButtonDown(.right)) {
@@ -284,6 +279,7 @@ const State = struct {
     level: level.Level,
     ecs: entity.ECS,
     iterator: prefab.Iterator,
+    particles: *Particles,
 
     radius: f32 = 64,
 };
@@ -317,6 +313,10 @@ pub fn main() !void {
     try level.init(allocator);
     defer level.deinit(allocator);
 
+    const particles = try allocator.create(Particles);
+    particles.* = .init(allocator);
+    defer particles.deinit();
+
     var selected: Selected = .{ .Entity = .{ .e = prefab.get(.cube), .mouse_end = .init(0, 0), .mouse_start = .init(0, 0) } };
 
     var lvl = level.get(1);
@@ -335,6 +335,7 @@ pub fn main() !void {
         .add_stack = add_stack,
         .allocator = allocator,
         .ecs = ecs,
+        .particles = particles,
         .level = lvl,
         .iterator = prefab.iter(allocator),
     };
@@ -361,12 +362,14 @@ pub fn main() !void {
         }
 
         state.ecs.update(deltatime, state.level);
+        state.particles.update(deltatime, &state.ecs);
         handle_input(&camera);
 
         state.level.update_intermediate_texture(camera);
         scene.begin();
         rl.clearBackground(.black);
         state.level.draw(camera);
+        state.particles.draw(camera);
         state.ecs.draw(camera);
         if (rl.isKeyDown(.left_shift)) draw_debug(state.ecs, camera);
         selected.draw(camera);

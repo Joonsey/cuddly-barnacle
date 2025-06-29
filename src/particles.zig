@@ -3,6 +3,7 @@ const rl = @import("raylib");
 
 const renderer = @import("renderer.zig");
 const entity = @import("entity.zig");
+const prefab = @import("prefabs.zig");
 
 pub const Particles = struct {
     const Spark = struct {
@@ -131,7 +132,7 @@ pub const Particles = struct {
         }
     }
 
-    pub fn update(self: *Self, deltatime: f32, ecs: entity.ECS) void {
+    pub fn update(self: *Self, deltatime: f32, ecs: *entity.ECS) void {
         self.passed_frames += 1;
         for (self.particles.items) |*particle| {
             particle.lifetime = @max(0, particle.lifetime - deltatime);
@@ -148,6 +149,38 @@ pub const Particles = struct {
                 i += 1;
             }
         }
+        const entities = ecs.entities.items.len;
+        for (0..entities) |x| {
+            const e = ecs.entities.items[x];
+            if (e.transform) |transform| {
+                if (e.particle_emitter) |pe| {
+                    if (pe.current > 0) continue;
+                    switch (pe.kind) {
+                        .Flat => |particle| {
+                            _ = particle;
+                            self.particles.append(
+                                self.allocator,
+                                Particle{
+                                    .color = pe.color,
+                                    .position = transform.position,
+                                    .velocity = pe.direction,
+                                    .lifetime = pe.lifetime,
+                                    .kind = .{ .Rectangle = .{ .x = 10, .y = 10 } },
+                                },
+                            ) catch unreachable;
+                        },
+                        .Stacked => |particle| {
+                            var pre = prefab.get(.particle);
+                            pre.transform = transform;
+                            pre.kinetic = .{ .weight = particle.weight, .velocity = pe.direction };
+                            pre.timer = .{ .timer = pe.lifetime };
+                            pre.renderable.?.Stacked.color = pe.color;
+                            _ = ecs.spawn(pre);
+                        },
+                    }
+                }
+            }
+        }
 
         const interval = 4;
         if (self.passed_frames % interval != 0) return;
@@ -155,7 +188,8 @@ pub const Particles = struct {
         self.particle_index += 1;
         const back_velocity = 5;
         const side_velocity = 12;
-        for (ecs.entities.items) |e| {
+        for (0..entities) |x| {
+            const e = ecs.entities.items[x];
             if (e.transform) |transform| {
                 const forward = rl.Vector2{ .x = @cos(transform.rotation), .y = @sin(transform.rotation) };
                 const perp = rl.Vector2{ .x = -forward.y, .y = forward.x };

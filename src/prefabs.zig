@@ -13,6 +13,8 @@ pub const Prefab = enum(u8) {
     fence_end,
     fence_corner,
     missile,
+    particle,
+    smoke_emitter,
 };
 
 const Map = std.AutoHashMapUnmanaged(Prefab, entity.Entity);
@@ -27,18 +29,77 @@ fn reg(comptime pre: Prefab, allocator: std.mem.Allocator, e: entity.Entity) !vo
 
 pub fn init(allocator: std.mem.Allocator) !void {
     // init prefabs
-    try reg(.cube, allocator, .{ .archetype = .Wall, .collision = .{ .x = 0, .y = 0, .width = 40, .height = 40 }, .transform = .{ .position = .{ .x = 0, .y = 0 } }, .renderable = .{ .Stacked = try .init("assets/cube.png") } });
-    try reg(.brick, allocator, .{ .archetype = .Wall, .collision = .{ .x = 0, .y = 0, .width = 14, .height = 14 }, .transform = .{ .position = .{ .x = 0, .y = 0 } }, .renderable = .{ .Stacked = try .init("assets/brick.png") } });
-    try reg(.fence, allocator, .{ .archetype = .Wall, .collision = .{ .x = 0, .y = 0, .width = 8, .height = 8 }, .transform = .{ .position = .{ .x = 0, .y = 0 } }, .renderable = .{ .Stacked = try .init("assets/fence-4.png") } });
-    try reg(.fence_end, allocator, .{ .archetype = .Wall, .collision = .{ .x = 0, .y = 0, .width = 8, .height = 8 }, .transform = .{ .position = .{ .x = 0, .y = 0 } }, .renderable = .{ .Stacked = try .init("assets/fence-3.png") } });
-    try reg(.fence_corner, allocator, .{ .archetype = .Wall, .collision = .{ .x = 0, .y = 0, .width = 8, .height = 8 }, .transform = .{ .position = .{ .x = 0, .y = 0 } }, .renderable = .{ .Stacked = try .init("assets/fence-0.png") } });
+    try reg(.cube, allocator, .{
+        .archetype = .Wall,
+        .collision = .{ .x = 0, .y = 0, .width = 40, .height = 40 },
+        .transform = .{ .position = .{ .x = 0, .y = 0 } },
+        .renderable = .{ .Stacked = try .init("assets/cube.png") },
+    });
+    try reg(.particle, allocator, .{
+        .archetype = .Particle,
+        .transform = .{ .position = .{ .x = 0, .y = 0 } },
+        .renderable = .{ .Stacked = try .init("assets/particle.png") },
+    });
+    try reg(.brick, allocator, .{
+        .archetype = .Wall,
+        .collision = .{ .x = 0, .y = 0, .width = 14, .height = 14 },
+        .transform = .{ .position = .{ .x = 0, .y = 0 } },
+        .renderable = .{ .Stacked = try .init("assets/brick.png") },
+    });
+    try reg(.fence, allocator, .{
+        .archetype = .Wall,
+        .collision = .{ .x = 0, .y = 0, .width = 8, .height = 8 },
+        .transform = .{ .position = .{ .x = 0, .y = 0 } },
+        .renderable = .{ .Stacked = try .init("assets/fence-4.png") },
+    });
+    try reg(.fence_end, allocator, .{
+        .archetype = .Wall,
+        .collision = .{ .x = 0, .y = 0, .width = 8, .height = 8 },
+        .transform = .{ .position = .{ .x = 0, .y = 0 } },
+        .renderable = .{ .Stacked = try .init("assets/fence-3.png") },
+    });
+    try reg(.fence_corner, allocator, .{
+        .archetype = .Wall,
+        .collision = .{ .x = 0, .y = 0, .width = 8, .height = 8 },
+        .transform = .{ .position = .{ .x = 0, .y = 0 } },
+        .renderable = .{ .Stacked = try .init("assets/fence-0.png") },
+    });
 
-    try reg(.missile, allocator, .{ .archetype = .Missile, .transform = .{ .position = .{ .x = 0, .y = 0 } }, .renderable = .{ .Stacked = try .init("assets/missile.png") }, .shadow = .{ .radius = 8 }, .timer = .{ .timer = 0.5 } });
+    try reg(.missile, allocator, .{
+        .archetype = .Missile,
+        .transform = .{ .position = .{ .x = 0, .y = 0 } },
+        .renderable = .{ .Stacked = try .init("assets/missile.png") },
+        .shadow = .{ .radius = 8 },
+        .timer = .{ .timer = 0.5 },
+    });
 
-    try reg(.tank, allocator, .{ .archetype = .Car, .collision = .{ .x = 0, .y = 0, .width = 18, .height = 18 }, .transform = .{ .position = .{ .x = 0, .y = 0 } }, .renderable = .{ .Stacked = try .init("assets/tank.png") }, .shadow = .{ .radius = 9 } });
-    try reg(.car_base, allocator, .{ .archetype = .Car, .collision = .{ .x = 0, .y = 0, .width = 16, .height = 16 }, .transform = .{ .position = .{ .x = 0, .y = 0 } }, .renderable = .{ .Stacked = try .init("assets/car_base.png") }, .shadow = .{ .radius = 8 } });
+    try reg(.tank, allocator, .{
+        .archetype = .Car,
+        .collision = .{ .x = 0, .y = 0, .width = 18, .height = 18 },
+        .transform = .{ .position = .{ .x = 0, .y = 0 } },
+        .renderable = .{ .Stacked = try .init("assets/tank.png") },
+        .shadow = .{ .radius = 9 },
+    });
+    try reg(.car_base, allocator, .{
+        .archetype = .Car,
+        .collision = .{ .x = 0, .y = 0, .width = 16, .height = 16 },
+        .transform = .{ .position = .{ .x = 0, .y = 0 } },
+        .renderable = .{ .Stacked = try .init("assets/car_base.png") },
+        .shadow = .{ .radius = 8 },
+    });
 
-    try reg(.itembox, allocator, .{ .archetype = .ItemBox, .collision = .{ .x = 0, .y = 0, .width = 16, .height = 16 }, .transform = .{ .position = .{ .x = 0, .y = 0 } }, .renderable = .{ .Stacked = try .init("assets/itembox.png") }, .shadow = .{ .radius = 8 } });
+    try reg(.itembox, allocator, .{
+        .archetype = .ItemBox,
+        .collision = .{ .x = 0, .y = 0, .width = 16, .height = 16 },
+        .transform = .{ .position = .{ .x = 0, .y = 0 } },
+        .renderable = .{ .Stacked = try .init("assets/itembox.png") },
+        .shadow = .{ .radius = 8 },
+    });
+    try reg(.smoke_emitter, allocator, .{
+        .archetype = .ParticleEmitter,
+        .transform = .{ .position = .{ .x = 0, .y = 0 } },
+        .particle_emitter = .{ .kind = .{ .Stacked = .{} }, .direction = .init(0, 0) },
+    });
 
     // init icons
     try items.put(allocator, .boost, try rl.loadTexture("assets/ui/icons/boost.png"));
