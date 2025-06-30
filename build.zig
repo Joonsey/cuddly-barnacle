@@ -1,9 +1,15 @@
 const std = @import("std");
 
+fn compress_file(builder: *std.Build, input_path: []const u8, output_path: []const u8) *std.Build.Step.Run {
+    return builder.addSystemCommand(&.{
+        "zstd", "-f", "-o", output_path, input_path,
+    });
+}
+
 // Although this function looks imperative, note that its job is to
 // declaratively construct a build graph that will be executed by an external
 // runner.
-pub fn build(b: *std.Build) void {
+pub fn build(b: *std.Build) !void {
     // Standard target options allows the person running `zig build` to choose
     // what target to build for. Here we do not override the defaults, which
     // means any target is allowed, and the default is native. Other options
@@ -109,14 +115,40 @@ pub fn build(b: *std.Build) void {
         matchmaker_cmd.addArgs(args);
     }
 
-    // This creates a build step. It will be visible in the `zig build --help` menu,
-    // and can be selected like this: `zig build run`
-    // This will evaluate the `run` step rather than the default, which is "install".
+    const allocator = b.allocator;
+
+    const assets_path = "compressed_assets";
+    var asset_dir = try std.fs.cwd().openDir(assets_path, .{ .iterate = true });
+    defer asset_dir.close();
+
+    const compressed_path = "compressed_assets";
+    var compressed_dir = try std.fs.cwd().openDir(compressed_path, .{ .iterate = true });
+    defer compressed_dir.close();
+
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
     const editor_step = b.step("editor", "Run the editor");
     editor_step.dependOn(&editor_cmd.step);
+
+    var walker = try asset_dir.walk(allocator);
+    while (try walker.next()) |entry| {
+        if (entry.kind == .file) {
+            const input_path = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ assets_path, entry.path });
+            const output_path = try std.fmt.allocPrint(allocator, "{s}/{s}.zst", .{ compressed_path, entry.path });
+            const compress_step = compress_file(b, input_path, output_path);
+            run_cmd.step.dependOn(&compress_step.step);
+        }
+        if (entry.kind == .directory) {
+            _ = compressed_dir.makeDir(entry.path) catch null;
+        }
+    }
+
+    exe.addIncludePath(.{ .cwd_relative = compressed_path });
+
+    // This creates a build step. It will be visible in the `zig build --help` menu,
+    // and can be selected like this: `zig build run`
+    // This will evaluate the `run` step rather than the default, which is "install".
 
     const matchmaker_step = b.step("matchmaker", "Run the matchmaking server");
     matchmaker_step.dependOn(&matchmaker_cmd.step);
