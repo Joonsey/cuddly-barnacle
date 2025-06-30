@@ -4,11 +4,37 @@ const renderer = @import("renderer.zig");
 const entity = @import("entity.zig");
 const prefab = @import("prefabs.zig");
 const shared = @import("shared.zig");
+const assets = @import("assets.zig");
+
+pub fn get_texture(comptime path: []const u8) !rl.Texture {
+    const image = try rl.loadImageFromMemory(".png", assets.decompress_file(path));
+    defer image.unload();
+    return try image.toTexture();
+}
 
 pub const Levels = struct {
     pub const level_one: []const u8 = "level1";
     pub const level_two: []const u8 = "level2";
 };
+
+pub fn ensure_null_terminated(
+    allocator: std.mem.Allocator,
+    input: []const u8,
+) ![:0]const u8 {
+    if (input.len > 0 and input[input.len - 1] == 0) {
+        return input[0.. :0];
+    }
+
+    return allocator.dupeZ(u8, input);
+}
+
+fn load_fs(allocator: std.mem.Allocator, comptime input: []const u8) !rl.Shader {
+    const fragment_shader = assets.decompress_file(input);
+    const null_terminated_fs = try ensure_null_terminated(allocator, fragment_shader);
+    defer allocator.free(null_terminated_fs);
+
+    return rl.loadShaderFromMemory(null, null_terminated_fs);
+}
 
 pub const NUM_LEVELS = 2;
 
@@ -16,8 +42,18 @@ const Map = std.ArrayListUnmanaged(Level);
 var map: Map = .{};
 
 pub fn init(allocator: std.mem.Allocator) !void {
-    try map.append(allocator, try .init(Levels.level_one, allocator, try rl.loadShader(null, "assets/shaders/world_water.fs"), try rl.loadMusicStream("assets/music/select_beach_bpm100_0.ogg")));
-    try map.append(allocator, try .init(Levels.level_two, allocator, try rl.loadShader(null, "assets/shaders/world_lava.fs"), try rl.loadMusicStream("assets/music/select_castle_bpm95_0.ogg")));
+    try map.append(allocator, try .init(
+        Levels.level_one,
+        allocator,
+        try load_fs(allocator, "compressed_assets/shaders/world_water.fs.zst"),
+        try rl.loadMusicStreamFromMemory(".ogg", assets.decompress_file("compressed_assets/music/select_beach_bpm100_0.ogg.zst")),
+    ));
+    try map.append(allocator, try .init(
+        Levels.level_two,
+        allocator,
+        try load_fs(allocator, "compressed_assets/shaders/world_lava.fs.zst"),
+        try rl.loadMusicStreamFromMemory(".ogg", assets.decompress_file("compressed_assets/music/select_castle_bpm95_0.ogg.zst")),
+    ));
 }
 
 pub fn deinit(allocator: std.mem.Allocator) void {
@@ -164,20 +200,21 @@ pub const Level = struct {
     };
 
     const Self = @This();
-    const levels_path = "assets/levels/";
+    const levels_path = "compressed_assets/levels/";
     pub fn init(comptime directory: []const u8, allocator: std.mem.Allocator, shader: rl.Shader, music: rl.Music) !Self {
-        const text = try rl.loadTexture(levels_path ++ directory ++ "/graphics.png");
+        const text = try get_texture(levels_path ++ directory ++ "/graphics.png.zst");
 
+        const physics_image = try rl.loadImageFromMemory(".png", assets.decompress_file(levels_path ++ directory ++ "/physics.png.zst"));
         return .{
-            .physics_image = try rl.loadImage(levels_path ++ directory ++ "/physics.png"),
+            .physics_image = physics_image,
             .graphics_texture = text,
             .intermediate_texture = try rl.loadRenderTexture(shared.RENDER_WIDTH, shared.RENDER_HEIGHT),
-            .metadata = Metadata.load(levels_path ++ directory ++ "/metadata") catch .{},
-            .startup_entities = try load_entities_from_file(levels_path ++ directory ++ "/entities", allocator),
-            .checkpoints = try load_checkpoints_from_file(levels_path ++ directory ++ "/checkpoints", allocator),
-            .finish = try load_finish_from_file(levels_path ++ directory ++ "/finish", allocator),
-            .icon = try rl.loadTexture(levels_path ++ directory ++ "/icon.png"),
-            .minmap = try rl.loadTexture(levels_path ++ directory ++ "/minimap.png"),
+            .metadata = Metadata.load(levels_path ++ directory ++ "/metadata") catch .{}, // TODO
+            .startup_entities = try load_entities(assets.decompress_file(levels_path ++ directory ++ "/entities.zst"), allocator),
+            .checkpoints = try load_checkpoints(assets.decompress_file(levels_path ++ directory ++ "/checkpoints.zst"), allocator),
+            .finish = try load_finish(assets.decompress_file(levels_path ++ directory ++ "/finish.zst"), allocator),
+            .icon = try get_texture(levels_path ++ directory ++ "/icon.png.zst"),
+            .minmap = try get_texture(levels_path ++ directory ++ "/minimap.png.zst"),
             .sound_track = music,
             .shader = shader,
         };
@@ -208,39 +245,21 @@ pub const Level = struct {
         self.intermediate_texture.end();
     }
 
-    fn load_checkpoints_from_file(path: []const u8, allocator: std.mem.Allocator) ![]Checkpoint {
-        const file = try std.fs.cwd().openFile(path, .{});
-        defer file.close();
-
-        const buf = try file.readToEndAlloc(allocator, 200000000);
-        defer allocator.free(buf);
-
+    fn load_checkpoints(buf: []const u8, allocator: std.mem.Allocator) ![]Checkpoint {
         const parser = try std.json.parseFromSlice([]Checkpoint, allocator, buf, .{ .ignore_unknown_fields = true });
         defer parser.deinit();
 
         return try allocator.dupe(Checkpoint, parser.value);
     }
 
-    fn load_finish_from_file(path: []const u8, allocator: std.mem.Allocator) !Finish {
-        const file = try std.fs.cwd().openFile(path, .{});
-        defer file.close();
-
-        const buf = try file.readToEndAlloc(allocator, 200000000);
-        defer allocator.free(buf);
-
+    fn load_finish(buf: []const u8, allocator: std.mem.Allocator) !Finish {
         const parser = try std.json.parseFromSlice(Finish, allocator, buf, .{ .ignore_unknown_fields = true });
         defer parser.deinit();
 
         return parser.value;
     }
 
-    fn load_entities_from_file(path: []const u8, allocator: std.mem.Allocator) ![]entity.Entity {
-        const file = try std.fs.cwd().openFile(path, .{});
-        defer file.close();
-
-        const buf = try file.readToEndAlloc(allocator, 200000000);
-        defer allocator.free(buf);
-
+    fn load_entities(buf: []const u8, allocator: std.mem.Allocator) ![]entity.Entity {
         const parser = try std.json.parseFromSlice([]BinEntity, allocator, buf, .{ .ignore_unknown_fields = true });
         defer parser.deinit();
 

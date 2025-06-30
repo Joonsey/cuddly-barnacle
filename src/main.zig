@@ -6,6 +6,7 @@ const entity = @import("entity.zig");
 const level = @import("level.zig");
 
 const builtin = @import("builtin");
+const assets = @import("assets.zig");
 
 const prefab = @import("prefabs.zig");
 const Tracks = @import("tracks.zig").Tracks;
@@ -803,6 +804,9 @@ pub fn main() !void {
         .ok => {},
     };
     const allocator = DBA.allocator();
+    try assets.init();
+    defer assets.deinit();
+
     try prefab.init(allocator);
     defer prefab.deinit(allocator);
 

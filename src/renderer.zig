@@ -2,6 +2,7 @@ const std = @import("std");
 const rl = @import("raylib");
 
 const entity = @import("entity.zig");
+const assets = @import("assets.zig");
 
 pub const Camera = struct {
     position: rl.Vector2,
@@ -79,13 +80,10 @@ pub const Flat = struct {
     texture: rl.Texture,
     color: rl.Color = .white,
 
-    path: [:0]const u8,
-
     const Self = @This();
     pub fn init(path: [:0]const u8) !Self {
         return .{
             .texture = try rl.loadTexture(path),
-            .path = path,
         };
     }
 
@@ -116,17 +114,20 @@ pub const Stacked = struct {
     texture: rl.Texture,
     color: rl.Color = .white,
 
-    path: [:0]const u8,
-
     const Self = @This();
     pub fn init(path: [:0]const u8) !Self {
-        return .{ .texture = try rl.loadTexture(path), .path = path };
+        return .{ .texture = try rl.loadTexture(path) };
+    }
+
+    pub fn load_from_asset(asset: assets.Asset) !Self {
+        const image = try rl.loadImageFromMemory(".png", assets.get(asset));
+        defer image.unload();
+        return .{ .texture = try image.toTexture() };
     }
 
     pub fn copy(self: Self) Self {
         return .{
             .texture = self.texture,
-            .path = self.path,
         };
     }
 

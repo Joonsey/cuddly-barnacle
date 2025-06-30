@@ -2,6 +2,7 @@ const std = @import("std");
 const rl = @import("raylib");
 
 const entity = @import("entity.zig");
+const assets = @import("assets.zig");
 const Camera = @import("renderer.zig").Camera;
 
 const Sounds = enum(usize) {
@@ -23,16 +24,21 @@ const Sounds = enum(usize) {
 
 var cache: std.ArrayListUnmanaged(rl.Sound) = .{};
 
+fn load_sound(comptime path: []const u8) !rl.Sound {
+    return rl.loadSoundFromWave(try rl.loadWaveFromMemory(".wav", assets.decompress_file(path)));
+}
+
 fn init_cache(allocator: std.mem.Allocator) !void {
     // hits
-    try cache.append(allocator, try rl.loadSound("assets/sfx/Hit.wav"));
-    try cache.append(allocator, try rl.loadSound("assets/sfx/Hit1.wav"));
-    try cache.append(allocator, try rl.loadSound("assets/sfx/Hit4.wav"));
+    try cache.append(allocator, try load_sound("compressed_assets/sfx/Hit.wav.zst"));
+    try cache.append(allocator, try load_sound("compressed_assets/sfx/Hit1.wav.zst"));
+    try cache.append(allocator, try load_sound("compressed_assets/sfx/Hit4.wav.zst"));
+    try cache.append(allocator, try load_sound("compressed_assets/sfx/Hit4.wav.zst"));
 
     // pickups
-    try cache.append(allocator, try rl.loadSound("assets/sfx/Pickup6.wav"));
-    try cache.append(allocator, try rl.loadSound("assets/sfx/Pickup18.wav"));
-    try cache.append(allocator, try rl.loadSound("assets/sfx/Pickup21.wav"));
+    try cache.append(allocator, try load_sound("compressed_assets/sfx/Pickup6.wav.zst"));
+    try cache.append(allocator, try load_sound("compressed_assets/sfx/Pickup18.wav.zst"));
+    try cache.append(allocator, try load_sound("compressed_assets/sfx/Pickup21.wav.zst"));
 }
 
 fn deinit_cache(allocator: std.mem.Allocator) void {
