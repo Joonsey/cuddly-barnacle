@@ -2,6 +2,7 @@ const std = @import("std");
 const rl = @import("raylib");
 const entity = @import("entity.zig");
 const renderer = @import("renderer.zig");
+const assets = @import("assets.zig");
 
 pub const Prefab = enum(u8) {
     cube,
@@ -27,48 +28,54 @@ fn reg(comptime pre: Prefab, allocator: std.mem.Allocator, e: entity.Entity) !vo
     try map.put(allocator, pre, e_cop);
 }
 
+pub fn get_texture(comptime asset: assets.Asset) !rl.Texture {
+    const image = try rl.loadImageFromMemory(".png", assets.get(asset));
+    defer image.unload();
+    return try image.toTexture();
+}
+
 pub fn init(allocator: std.mem.Allocator) !void {
     // init prefabs
     try reg(.cube, allocator, .{
         .archetype = .Wall,
         .collision = .{ .x = 0, .y = 0, .width = 40, .height = 40 },
         .transform = .{ .position = .{ .x = 0, .y = 0 } },
-        .renderable = .{ .Stacked = try .init("assets/cube.png") },
+        .renderable = .{ .Stacked = .{ .texture = try get_texture(.cube) } },
     });
     try reg(.particle, allocator, .{
         .archetype = .Particle,
         .transform = .{ .position = .{ .x = 0, .y = 0 } },
-        .renderable = .{ .Stacked = try .init("assets/particle.png") },
+        .renderable = .{ .Stacked = .{ .texture = try get_texture(.particle) } },
     });
     try reg(.brick, allocator, .{
         .archetype = .Wall,
         .collision = .{ .x = 0, .y = 0, .width = 14, .height = 14 },
         .transform = .{ .position = .{ .x = 0, .y = 0 } },
-        .renderable = .{ .Stacked = try .init("assets/brick.png") },
+        .renderable = .{ .Stacked = .{ .texture = try get_texture(.brick) } },
     });
     try reg(.fence, allocator, .{
         .archetype = .Wall,
         .collision = .{ .x = 0, .y = 0, .width = 8, .height = 8 },
         .transform = .{ .position = .{ .x = 0, .y = 0 } },
-        .renderable = .{ .Stacked = try .init("assets/fence-4.png") },
+        .renderable = .{ .Stacked = .{ .texture = try get_texture(.fence4) } },
     });
     try reg(.fence_end, allocator, .{
         .archetype = .Wall,
         .collision = .{ .x = 0, .y = 0, .width = 8, .height = 8 },
         .transform = .{ .position = .{ .x = 0, .y = 0 } },
-        .renderable = .{ .Stacked = try .init("assets/fence-3.png") },
+        .renderable = .{ .Stacked = .{ .texture = try get_texture(.fence3) } },
     });
     try reg(.fence_corner, allocator, .{
         .archetype = .Wall,
         .collision = .{ .x = 0, .y = 0, .width = 8, .height = 8 },
         .transform = .{ .position = .{ .x = 0, .y = 0 } },
-        .renderable = .{ .Stacked = try .init("assets/fence-0.png") },
+        .renderable = .{ .Stacked = .{ .texture = try get_texture(.fence0) } },
     });
 
     try reg(.missile, allocator, .{
         .archetype = .Missile,
         .transform = .{ .position = .{ .x = 0, .y = 0 } },
-        .renderable = .{ .Stacked = try .init("assets/missile.png") },
+        .renderable = .{ .Stacked = .{ .texture = try get_texture(.missile) } },
         .shadow = .{ .radius = 8 },
         .timer = .{ .timer = 0.5 },
     });
@@ -77,14 +84,14 @@ pub fn init(allocator: std.mem.Allocator) !void {
         .archetype = .Car,
         .collision = .{ .x = 0, .y = 0, .width = 18, .height = 18 },
         .transform = .{ .position = .{ .x = 0, .y = 0 } },
-        .renderable = .{ .Stacked = try .init("assets/tank.png") },
+        .renderable = .{ .Stacked = .{ .texture = try get_texture(.tank) } },
         .shadow = .{ .radius = 9 },
     });
     try reg(.car_base, allocator, .{
         .archetype = .Car,
         .collision = .{ .x = 0, .y = 0, .width = 16, .height = 16 },
         .transform = .{ .position = .{ .x = 0, .y = 0 } },
-        .renderable = .{ .Stacked = try .init("assets/car_base.png") },
+        .renderable = .{ .Stacked = .{ .texture = try get_texture(.car_base) } },
         .shadow = .{ .radius = 8 },
     });
 
@@ -92,7 +99,7 @@ pub fn init(allocator: std.mem.Allocator) !void {
         .archetype = .ItemBox,
         .collision = .{ .x = 0, .y = 0, .width = 16, .height = 16 },
         .transform = .{ .position = .{ .x = 0, .y = 0 } },
-        .renderable = .{ .Stacked = try .init("assets/itembox.png") },
+        .renderable = .{ .Stacked = .{ .texture = try get_texture(.itembox) } },
         .shadow = .{ .radius = 8 },
     });
     try reg(.smoke_emitter, allocator, .{
@@ -102,28 +109,28 @@ pub fn init(allocator: std.mem.Allocator) !void {
     });
 
     // init icons
-    try items.put(allocator, .boost, try rl.loadTexture("assets/ui/icons/boost.png"));
-    try items.put(allocator, .missile, try rl.loadTexture("assets/ui/icons/missile.png"));
+    try items.put(allocator, .boost, try get_texture(.ui_boost));
+    try items.put(allocator, .missile, try get_texture(.ui_missile));
 
     // UI elements
-    try ui.put(allocator, .notready, try rl.loadTexture("assets/ui/lobby/notready.png"));
-    try ui.put(allocator, .ready, try rl.loadTexture("assets/ui/lobby/ready.png"));
-    try ui.put(allocator, .unoccupied, try rl.loadTexture("assets/ui/lobby/unoccupied.png"));
-    try ui.put(allocator, .selected, try rl.loadTexture("assets/ui/lobby/selected.png"));
+    try ui.put(allocator, .notready, try get_texture(.lobby_notready));
+    try ui.put(allocator, .ready, try get_texture(.lobby_ready));
+    try ui.put(allocator, .unoccupied, try get_texture(.lobby_unoccupied));
+    try ui.put(allocator, .selected, try get_texture(.lobby_selected));
 
-    try ui.put(allocator, .placement_base, try rl.loadTexture("assets/ui/lobby/placement/base.png"));
-    try ui.put(allocator, .first, try rl.loadTexture("assets/ui/lobby/placement/1st.png"));
-    try ui.put(allocator, .second, try rl.loadTexture("assets/ui/lobby/placement/2nd.png"));
-    try ui.put(allocator, .third, try rl.loadTexture("assets/ui/lobby/placement/3rd.png"));
-    try ui.put(allocator, .fourth, try rl.loadTexture("assets/ui/lobby/placement/4th.png"));
-    try ui.put(allocator, .fifth, try rl.loadTexture("assets/ui/lobby/placement/5th.png"));
-    try ui.put(allocator, .sixth, try rl.loadTexture("assets/ui/lobby/placement/6th.png"));
-    try ui.put(allocator, .seventh, try rl.loadTexture("assets/ui/lobby/placement/7th.png"));
-    try ui.put(allocator, .eight, try rl.loadTexture("assets/ui/lobby/placement/8th.png"));
-    try ui.put(allocator, .ninth, try rl.loadTexture("assets/ui/lobby/placement/9th.png"));
-    try ui.put(allocator, .tenth, try rl.loadTexture("assets/ui/lobby/placement/10th.png"));
-    try ui.put(allocator, .eleventh, try rl.loadTexture("assets/ui/lobby/placement/11th.png"));
-    try ui.put(allocator, .twelveth, try rl.loadTexture("assets/ui/lobby/placement/12th.png"));
+    try ui.put(allocator, .placement_base, try get_texture(.placement_base));
+    try ui.put(allocator, .first, try get_texture(.placement_1));
+    try ui.put(allocator, .second, try get_texture(.placement_2));
+    try ui.put(allocator, .third, try get_texture(.placement_3));
+    try ui.put(allocator, .fourth, try get_texture(.placement_4));
+    try ui.put(allocator, .fifth, try get_texture(.placement_5));
+    try ui.put(allocator, .sixth, try get_texture(.placement_6));
+    try ui.put(allocator, .seventh, try get_texture(.placement_7));
+    try ui.put(allocator, .eight, try get_texture(.placement_8));
+    try ui.put(allocator, .ninth, try get_texture(.placement_9));
+    try ui.put(allocator, .tenth, try get_texture(.placement_10));
+    try ui.put(allocator, .eleventh, try get_texture(.placement_11));
+    try ui.put(allocator, .twelveth, try get_texture(.placement_12));
 }
 
 pub fn deinit(allocator: std.mem.Allocator) void {

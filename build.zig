@@ -117,11 +117,11 @@ pub fn build(b: *std.Build) !void {
 
     const allocator = b.allocator;
 
-    const assets_path = "compressed_assets";
+    const assets_path = "assets";
     var asset_dir = try std.fs.cwd().openDir(assets_path, .{ .iterate = true });
     defer asset_dir.close();
 
-    const compressed_path = "compressed_assets";
+    const compressed_path = "src/compressed_assets";
     var compressed_dir = try std.fs.cwd().openDir(compressed_path, .{ .iterate = true });
     defer compressed_dir.close();
 
@@ -143,8 +143,6 @@ pub fn build(b: *std.Build) !void {
             _ = compressed_dir.makeDir(entry.path) catch null;
         }
     }
-
-    exe.addIncludePath(.{ .cwd_relative = compressed_path });
 
     // This creates a build step. It will be visible in the `zig build --help` menu,
     // and can be selected like this: `zig build run`
