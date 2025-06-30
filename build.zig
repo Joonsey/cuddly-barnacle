@@ -122,6 +122,7 @@ pub fn build(b: *std.Build) !void {
     defer asset_dir.close();
 
     const compressed_path = "src/compressed_assets";
+    _ = std.fs.cwd().makeDir(compressed_path) catch null;
     var compressed_dir = try std.fs.cwd().openDir(compressed_path, .{ .iterate = true });
     defer compressed_dir.close();
 
