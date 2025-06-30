@@ -322,7 +322,15 @@ pub const Level = struct {
 
     pub fn save(self: *Self, entities: []entity.Entity, checkpoints: []Checkpoint, finish: Finish, allocator: std.mem.Allocator, comptime directory: []const u8) !void {
         allocator.free(self.startup_entities);
-        self.startup_entities = try allocator.dupe(entity.Entity, entities);
+        var pruned_entities: std.ArrayListUnmanaged(entity.Entity) = .{};
+        for (entities) |e| {
+            switch (e.archetype) {
+                .None, .Dead, .Particle => {},
+                else => try pruned_entities.append(allocator, e),
+            }
+        }
+        self.startup_entities = try allocator.dupe(entity.Entity, pruned_entities.items);
+        pruned_entities.clearAndFree(allocator);
 
         allocator.free(self.checkpoints);
         self.checkpoints = try allocator.dupe(Checkpoint, checkpoints);
@@ -342,7 +350,7 @@ pub const Level = struct {
 
         var arr: std.ArrayListUnmanaged(BinEntity) = .{};
         defer arr.deinit(allocator);
-        for (entities) |e| {
+        for (self.startup_entities) |e| {
             if (e.prefab) |pre| {
                 _ = try arr.append(allocator, .{
                     .transform = e.transform.?,

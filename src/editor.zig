@@ -286,8 +286,10 @@ const State = struct {
 
 fn draw_debug(ecs: entity.ECS, camera: renderer.Camera) void {
     for (ecs.entities.items) |e| {
-        const rel_position = camera.get_relative_position(e.transform.?.position);
-        rl.drawRectangleLines(@intFromFloat(rel_position.x), @intFromFloat(rel_position.y), 16, 16, .red);
+        if (e.transform) |transform| {
+            const rel_position = camera.get_relative_position(transform.position);
+            rl.drawRectangleLines(@intFromFloat(rel_position.x), @intFromFloat(rel_position.y), 16, 16, .red);
+        }
     }
 }
 
@@ -301,8 +303,6 @@ pub fn main() !void {
         .ok => {},
     };
     const allocator = DBA.allocator();
-    var ecs: entity.ECS = .init(allocator);
-    defer ecs.deinit();
 
     var add_stack: std.ArrayListUnmanaged(entity.EntityId) = .{};
     defer add_stack.deinit(allocator);
@@ -315,9 +315,12 @@ pub fn main() !void {
 
     const particles = try allocator.create(Particles);
     particles.* = .init(allocator);
+    defer allocator.destroy(particles);
     defer particles.deinit();
 
     var selected: Selected = .{ .Entity = .{ .e = prefab.get(.cube), .mouse_end = .init(0, 0), .mouse_start = .init(0, 0) } };
+
+    var ecs: entity.ECS = .init(allocator);
 
     var lvl = level.get(1);
     lvl.load_ecs(&ecs);
@@ -339,6 +342,8 @@ pub fn main() !void {
         .level = lvl,
         .iterator = prefab.iter(allocator),
     };
+
+    defer state.ecs.deinit();
 
     rl.setTargetFPS(144);
     while (!rl.windowShouldClose()) {

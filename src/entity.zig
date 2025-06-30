@@ -121,8 +121,8 @@ pub const ParticleKind = union(enum) {
 
 pub const ParticleEmitter = struct {
     kind: ParticleKind,
-    interval: f32 = 0.25,
-    current: f32 = 2,
+    interval: f32 = 5,
+    current: f32 = 0,
     lifetime: f32 = 2,
     color: rl.Color = .dark_gray,
     direction: rl.Vector2,
