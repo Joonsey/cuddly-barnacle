@@ -39,6 +39,22 @@ pub const Camera = struct {
         return rotated.add(self.screen_offset);
     }
 
+    pub fn apply_uniforms(self: Self, shader: rl.Shader) void {
+        const camera = self;
+        const camera_rotation = camera.rotation;
+        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_rotation"), &camera_rotation, .float);
+        const camera_position_x: f32 = camera.position.x;
+        const camera_position_y: f32 = camera.position.y;
+        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_offset_x"), &camera_position_x, .float);
+        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_offset_y"), &camera_position_y, .float);
+
+        const camera_screen_offset_x = camera.render_dimensions.x - camera.screen_offset.x;
+        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_screen_offset_x"), &camera_screen_offset_x, .float);
+        const camera_screen_offset_y = camera.render_dimensions.y - camera.screen_offset.y;
+        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_screen_offset_y"), &camera_screen_offset_y, .float);
+        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_render_width"), &camera_position_y, .float);
+    }
+
     pub fn get_absolute_position(self: Self, relative_position: rl.Vector2) rl.Vector2 {
         const delta = relative_position.subtract(self.screen_offset);
         const cos_r = @cos(self.rotation);

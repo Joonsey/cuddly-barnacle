@@ -616,15 +616,9 @@ const Gamestate = struct {
         return self.level;
     }
 
-    pub fn draw(self: Self) void {
+    pub fn draw_ui(self: Self) void {
         switch (self.state) {
             .Playing => |playing| {
-                const camera = self.camera.*;
-                self.level.draw(camera);
-                self.tracks.draw(camera);
-                self.particles.draw(camera);
-                self.ecs.draw(camera);
-
                 self.level.draw_minimap();
                 var iter = self.client.player_map.iterator();
                 while (iter.next()) |ent| {
@@ -666,6 +660,19 @@ const Gamestate = struct {
                         rl.drawText(text, RENDER_WIDTH - text_width, RENDER_HEIGHT - font_size, font_size, .white);
                     }
                 }
+            },
+            else => {},
+        }
+    }
+
+    pub fn draw(self: Self) void {
+        switch (self.state) {
+            .Playing => {
+                const camera = self.camera.*;
+                self.level.draw(camera);
+                self.tracks.draw(camera);
+                self.particles.draw(camera);
+                self.ecs.draw(camera);
             },
             .Browsing => {
                 self.draw_background();
@@ -828,6 +835,13 @@ pub fn main() !void {
     state.client.update_servers();
 
     const scene = try rl.loadRenderTexture(RENDER_WIDTH, RENDER_HEIGHT);
+    const vfx = try rl.loadRenderTexture(RENDER_WIDTH, RENDER_HEIGHT);
+
+    const fragment_shader = assets.decompress_file("compressed_assets/shaders/vfx_base.fs.zst");
+    const null_terminated_fs = try level.ensure_null_terminated(allocator, fragment_shader);
+    defer allocator.free(null_terminated_fs);
+
+    const vfx_shader = try rl.loadShaderFromMemory(null, null_terminated_fs);
 
     rl.setTargetFPS(144);
     while (!rl.windowShouldClose()) {
@@ -840,20 +854,46 @@ pub fn main() !void {
 
         scene.end();
 
-        // drawing scene at desired resolution
-        rl.beginDrawing();
-        rl.drawTexturePro(scene.texture, .{
-            .x = 0,
-            .y = 0,
-            .width = @floatFromInt(RENDER_WIDTH),
-            .height = @floatFromInt(-RENDER_HEIGHT),
-        }, .{
-            .x = 0,
-            .y = 0,
-            .width = @floatFromInt(WINDOW_WIDTH),
-            .height = @floatFromInt(WINDOW_HEIGHT),
-        }, rl.Vector2.zero(), 0, .white);
-        rl.drawFPS(0, 0);
-        rl.endDrawing();
+        if (state.state == .Playing) {
+            vfx.begin();
+            vfx_shader.activate();
+            rl.setShaderValue(vfx_shader, rl.getShaderLocation(vfx_shader, "u_tex_width"), &RENDER_WIDTH, .int);
+            rl.setShaderValue(vfx_shader, rl.getShaderLocation(vfx_shader, "u_tex_height"), &RENDER_HEIGHT, .int);
+            state.camera.apply_uniforms(vfx_shader);
+            rl.setShaderValue(vfx_shader, rl.getShaderLocation(vfx_shader, "u_time"), &@as(f32, @floatCast(rl.getTime())), .float);
+            scene.texture.drawV(.init(0, 0), .white);
+            vfx_shader.deactivate();
+            state.draw_ui();
+            vfx.end();
+
+            rl.beginDrawing();
+            rl.drawTexturePro(vfx.texture, .{
+                .x = 0,
+                .y = 0,
+                .width = @floatFromInt(RENDER_WIDTH),
+                .height = @floatFromInt(-RENDER_HEIGHT),
+            }, .{
+                .x = 0,
+                .y = 0,
+                .width = @floatFromInt(WINDOW_WIDTH),
+                .height = @floatFromInt(-WINDOW_HEIGHT),
+            }, rl.Vector2.zero(), 0, .white);
+            rl.endDrawing();
+        } else {
+            // drawing scene at desired resolution
+            rl.beginDrawing();
+            rl.drawTexturePro(scene.texture, .{
+                .x = 0,
+                .y = 0,
+                .width = @floatFromInt(RENDER_WIDTH),
+                .height = @floatFromInt(-RENDER_HEIGHT),
+            }, .{
+                .x = 0,
+                .y = 0,
+                .width = @floatFromInt(WINDOW_WIDTH),
+                .height = @floatFromInt(-WINDOW_HEIGHT),
+            }, rl.Vector2.zero(), 0, .white);
+            rl.endDrawing();
+        }
     }
 }

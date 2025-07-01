@@ -293,20 +293,7 @@ pub const Level = struct {
         const texture = self.intermediate_texture.texture;
         rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_tex_width"), &texture.width, .int);
         rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_tex_height"), &texture.height, .int);
-
-        const camera_rotation = camera.rotation;
-        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_rotation"), &camera_rotation, .float);
-        const camera_position_x: f32 = camera.position.x;
-        const camera_position_y: f32 = camera.position.y;
-        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_offset_x"), &camera_position_x, .float);
-        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_offset_y"), &camera_position_y, .float);
-
-        const camera_screen_offset_x = camera.render_dimensions.x - camera.screen_offset.x;
-        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_screen_offset_x"), &camera_screen_offset_x, .float);
-        const camera_screen_offset_y = camera.render_dimensions.y - camera.screen_offset.y;
-        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_camera_screen_offset_y"), &camera_screen_offset_y, .float);
-        rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_render_width"), &camera_position_y, .float);
-
+        camera.apply_uniforms(shader);
         rl.setShaderValue(shader, rl.getShaderLocation(shader, "u_time"), &@as(f32, @floatCast(rl.getTime())), .float);
         texture.drawPro(.{ .x = 0, .y = 0, .width = shared.RENDER_WIDTH, .height = -shared.RENDER_HEIGHT }, .{ .x = 0, .y = 0, .width = shared.RENDER_WIDTH, .height = shared.RENDER_HEIGHT }, .init(0, 0), 0, .white);
         shader.deactivate();
