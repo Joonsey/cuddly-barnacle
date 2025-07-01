@@ -49,11 +49,63 @@ bool is_black(vec4 color) {
     return color.r == 0.0 && color.g == 0.0 && color.b == 0.0;
 }
 
+bool is_magenta(vec4 color) {
+    return color.r == 1.0 && color.g == 0.0 && color.b == 1.0;
+}
+
+float chevron(float x) {
+	return abs(fract(x) - 0.5);
+}
+
 void main() {
     vec2 uv = fragTexCoord;
     vec4 color = texture(texture0, uv);
 
-    if (is_black(color)) {
+	if (is_magenta(color)) {
+		vec2 screen_center = vec2(u_camera_screen_offset_x, u_camera_screen_offset_y);
+		vec2 world_position = (uv * vec2(u_tex_width, u_tex_height)) - vec2(-u_camera_offset_x, u_camera_offset_y);
+
+		float angle = -u_camera_rotation;
+		float cos_a = cos(angle);
+		float sin_a = sin(angle);
+
+		world_position = world_position - screen_center;
+		vec2 rotated = vec2(
+				cos_a * world_position.x - sin_a * world_position.y,
+				sin_a * world_position.x + cos_a * world_position.y
+				);
+		rotated = rotated + screen_center;
+
+		vec2 rotated_camera_offset = vec2(
+				cos_a * u_camera_offset_x - sin_a * -u_camera_offset_y,
+				sin_a * u_camera_offset_x + cos_a * -u_camera_offset_y
+				);
+
+		// camera representation of world position, with respect to rotation
+		vec2 rotated_world_position = rotated - rotated_camera_offset - vec2(-u_camera_offset_x, u_camera_offset_y);
+
+		float lines = 10;
+		float motion = u_time;
+
+		// because this level is so rigid and 'grid' like, it's nicer if we make them diagonal
+		float input = (rotated_world_position.y / u_tex_height) + (rotated_world_position.x / u_tex_width);
+		float pattern = chevron(input * lines - motion);
+
+		float threshold1 = 0.35;
+		float brightness1 = step(threshold1, pattern);
+
+		float threshold2 = 0.15;
+		float brightness2 = smoothstep(threshold2, threshold1, pattern);
+
+		vec3 color_a = vec3(0.2, 0.5, 1.0);
+		vec3 color_b = vec3(0.4, 0.8, 1.0);
+		vec3 color_c = vec3(1.0);
+
+		vec3 active_color = mix(color_a, color_b, brightness2);
+		vec3 final_color = mix(active_color, color_c, brightness1);
+		color = vec4(final_color, 1.0);
+
+	} else if (is_black(color)) {
 		bool found = false;
 		if (uv.y * u_tex_height < (u_tex_height - STACK_HEIGHT)) {
 			for (int i = 1; i <= STACK_HEIGHT; i++) {

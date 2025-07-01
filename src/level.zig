@@ -85,18 +85,20 @@ pub const Traction = enum(u8) {
     Track,
     Offroad,
     Slippery,
+    BoostFlat,
     Void,
 
     pub fn from_pixel(clr: rl.Color) Traction {
         if (color_equal(clr, .white)) return .Track;
         if (color_equal(clr, .black)) return .Void;
         if (color_equal(clr, .blue)) return .Slippery;
+        if (color_equal(clr, .magenta)) return .BoostFlat;
         return .Offroad;
     }
 
     pub fn friction(self: Traction) f32 {
         return switch (self) {
-            .Track => 0.97,
+            .Track, .BoostFlat => 0.97,
             .Offroad => 0.2,
             .Slippery => 0.99,
             .Void => 0,
@@ -105,7 +107,7 @@ pub const Traction = enum(u8) {
 
     pub fn speed_multiplier(self: Traction) f32 {
         return switch (self) {
-            .Track => 1.2,
+            .Track, .BoostFlat => 1.2,
             .Offroad => 0.6,
             .Slippery => 1.0,
             .Void => 1.0,

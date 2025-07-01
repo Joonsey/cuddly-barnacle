@@ -485,6 +485,12 @@ pub const ECS = struct {
                     kinetic.speed_multiplier = kinetic.traction.speed_multiplier();
                     kinetic.friction = kinetic.traction.friction();
 
+                    if (kinetic.traction == .BoostFlat) {
+                        if (entity.boost) |*boost| {
+                            boost.boost_time = DriftStage.Turbo.get_boost_time();
+                        }
+                    }
+
                     transform.height = @max(transform.height - (kinetic.weight * deltatime), 0);
                     if (transform.height == 0 and kinetic.traction == .Void) {
                         self.events.append(self.allocator, .{ .Voided = .{ .entity = @intCast(i), .position = transform.position } }) catch unreachable;
