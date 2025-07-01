@@ -11,6 +11,7 @@ const Particles = @import("particles.zig").Particles;
 
 const prefab = @import("prefabs.zig");
 const shared = @import("shared.zig");
+const assets = @import("assets.zig");
 
 var WINDOW_WIDTH: f32 = 1600;
 var WINDOW_HEIGHT: f32 = 900;
@@ -306,6 +307,9 @@ pub fn main() !void {
 
     var add_stack: std.ArrayListUnmanaged(entity.EntityId) = .{};
     defer add_stack.deinit(allocator);
+
+    try assets.init();
+    defer assets.deinit();
 
     try prefab.init(allocator);
     defer prefab.deinit(allocator);
