@@ -342,7 +342,6 @@ pub const Level = struct {
     }
 
     pub fn save(self: *Self, entities: []entity.Entity, checkpoints: []Checkpoint, finish: Finish, allocator: std.mem.Allocator, comptime directory: []const u8) !void {
-        allocator.free(self.startup_entities);
         var pruned_entities: std.ArrayListUnmanaged(entity.Entity) = .{};
         for (entities) |e| {
             switch (e.archetype) {
@@ -350,22 +349,20 @@ pub const Level = struct {
                 else => try pruned_entities.append(allocator, e),
             }
         }
-        self.startup_entities = try allocator.dupe(entity.Entity, pruned_entities.items);
-        pruned_entities.clearAndFree(allocator);
-
-        allocator.free(self.checkpoints);
+        self.startup_entities = try pruned_entities.toOwnedSlice(allocator);
         self.checkpoints = try allocator.dupe(Checkpoint, checkpoints);
 
         self.finish = finish;
 
-        const checkpoints_file = try std.fs.cwd().createFile(levels_path ++ directory ++ "/checkpoints", .{});
+        const levels_path_uncompressed = "assets/levels/";
+        const checkpoints_file = try std.fs.cwd().createFile(levels_path_uncompressed ++ directory ++ "/checkpoints", .{});
         defer checkpoints_file.close();
         try std.json.stringify(self.checkpoints, .{}, checkpoints_file.writer());
 
-        const entity_file = try std.fs.cwd().createFile(levels_path ++ directory ++ "/entities", .{});
+        const entity_file = try std.fs.cwd().createFile(levels_path_uncompressed ++ directory ++ "/entities", .{});
         defer entity_file.close();
 
-        const finish_file = try std.fs.cwd().createFile(levels_path ++ directory ++ "/finish", .{});
+        const finish_file = try std.fs.cwd().createFile(levels_path_uncompressed ++ directory ++ "/finish", .{});
         defer finish_file.close();
         try std.json.stringify(self.finish, .{}, finish_file.writer());
 
@@ -381,7 +378,7 @@ pub const Level = struct {
         }
         try std.json.stringify(arr.items, .{}, entity_file.writer());
 
-        const metadata_file = try std.fs.cwd().createFile(levels_path ++ directory ++ "/metadata", .{});
+        const metadata_file = try std.fs.cwd().createFile(levels_path_uncompressed ++ directory ++ "/metadata", .{});
         defer metadata_file.close();
         try std.json.stringify(self.metadata, .{}, metadata_file.writer());
     }

@@ -139,6 +139,7 @@ pub fn build(b: *std.Build) !void {
             const output_path = try std.fmt.allocPrint(allocator, "{s}/{s}.zst", .{ compressed_path, entry.path });
             const compress_step = compress_file(b, input_path, output_path);
             run_cmd.step.dependOn(&compress_step.step);
+            editor_cmd.step.dependOn(&compress_step.step);
         }
         if (entry.kind == .directory) {
             _ = compressed_dir.makeDir(entry.path) catch null;
