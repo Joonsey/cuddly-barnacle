@@ -403,18 +403,30 @@ pub const ECS = struct {
 
                         const a_delta = b_transform.position.subtract(a_transform.position);
 
-                        const normal = a_delta.normalize();
-                        const correction = normal.scale(b_transform.position.distance(a_transform.position) / 2);
-                        a_transform.position = a_transform.position.subtract(correction);
-                        b_transform.position = b_transform.position.add(correction);
+                        const is_valid = a_delta.lengthSqr() > 0.00001;
+                        const normal = if (is_valid) a_delta.normalize() else rl.Vector2.init(0, 1);
+
+                        // it is invalid if distance is 0, implying we are stuck inside each other.
+                        // we will offset the size of a car (16 units)
+                        // and also we well assert that normal is not null
+                        //
+                        // might find a better solution in the future but this really does quite work
+                        if (!is_valid) {
+                            const correction = normal.scale(16 / 2);
+                            a_transform.position = a_transform.position.subtract(correction);
+                            b_transform.position = b_transform.position.add(correction);
+                        }
 
                         const relative_vel = b_kinetic.velocity.subtract(a_kinetic.velocity);
                         const vel_along_normal = relative_vel.dotProduct(normal);
                         const restitution = 0.5;
                         const impulse_scalar = -(1 + restitution) * vel_along_normal / 2;
-                        const impulse = normal.scale(impulse_scalar);
 
-                        // works! but might need some tweaks
+                        // clamping it so we don't get any strange un-fun behaviour of ToD
+                        const max_impulse = 50;
+                        const impulse_scalar_clamped = std.math.clamp(impulse_scalar, -max_impulse, max_impulse);
+
+                        const impulse = normal.scale(impulse_scalar_clamped);
 
                         a_kinetic.velocity = a_kinetic.velocity.subtract(impulse);
                         b_kinetic.velocity = b_kinetic.velocity.add(impulse);
