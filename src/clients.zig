@@ -6,6 +6,8 @@ const shared = @import("shared.zig");
 const entity = @import("entity.zig");
 const prefab = @import("prefabs.zig");
 
+const ItemToSpawn = union(enum) { Missile: shared.MissileSpawn, Oil: shared.OilSpawn };
+
 const GameClientContext = struct {
     num_players: usize = 0,
     updates: [shared.MAX_PLAYERS]shared.SyncPacket,
@@ -18,7 +20,7 @@ const GameClientContext = struct {
     servers: std.ArrayListUnmanaged(shared.ServerSync),
     players_who_have_completed: std.ArrayListUnmanaged(shared.Finish) = .{},
 
-    items_to_spawn: std.ArrayListUnmanaged(shared.MissileSpawn) = .{},
+    items_to_spawn: std.ArrayListUnmanaged(ItemToSpawn) = .{},
 
     lock: std.Thread.RwLock,
 
@@ -103,7 +105,11 @@ fn handle_packet(self: *GameClientType, data: []const u8, sender: udptp.network.
         },
         .spawn_missile => {
             const item_spawn_sync = try udptp.deserialize_payload(packet.payload, shared.MissileSpawnSync);
-            if (item_spawn_sync.id != ctx.own_player_id) try ctx.items_to_spawn.append(self.allocator, item_spawn_sync.item);
+            if (item_spawn_sync.id != ctx.own_player_id) try ctx.items_to_spawn.append(self.allocator, .{ .Missile = item_spawn_sync.item });
+        },
+        .spawn_oil => {
+            const item_spawn_sync = try udptp.deserialize_payload(packet.payload, shared.OilSpawnSync);
+            if (item_spawn_sync.id != ctx.own_player_id) try ctx.items_to_spawn.append(self.allocator, .{ .Oil = item_spawn_sync.item });
         },
         else => {},
     }
@@ -273,15 +279,43 @@ pub const GameClient = struct {
         }
 
         if (self.ctx.items_to_spawn.pop()) |item| {
-            var pre = prefab.get(item.prefab);
-            if (self.player_map.get(item.target)) |entity_id| {
-                pre.target = .{ .id = entity_id };
-                pre.kinetic = item.kinetic;
-                pre.race_context = item.race_context;
-                pre.transform = item.transform;
-                _ = ecs.spawn(pre);
+            switch (item) {
+                .Missile => |missile| {
+                    var pre = prefab.get(missile.prefab);
+                    if (self.player_map.get(missile.target)) |entity_id| {
+                        pre.target = .{ .id = entity_id };
+                        pre.kinetic = missile.kinetic;
+                        pre.race_context = missile.race_context;
+                        pre.transform = missile.transform;
+                        _ = ecs.spawn(pre);
+                    }
+                },
+                .Oil => |oil| {
+                    var pre = prefab.get(oil.prefab);
+                    pre.transform = oil.transform;
+                    _ = ecs.spawn(pre);
+                },
             }
         }
+    }
+
+    pub fn send_spawn_oil(self: *Self, new_item: entity.Entity) void {
+        var buffer: [1024]u8 = undefined;
+        const item_spawn: shared.OilSpawn = .{
+            .transform = new_item.transform.?,
+            .prefab = new_item.prefab.?,
+        };
+
+        const item_spawn_sync: shared.OilSpawnSync = .{
+            .id = self.ctx.own_player_id,
+            .item = item_spawn,
+        };
+
+        const packet = shared.Packet.init(.spawn_oil, udptp.serialize_payload(&buffer, item_spawn_sync) catch unreachable) catch unreachable;
+        const data = packet.serialize(self.allocator) catch unreachable;
+        defer self.allocator.free(data);
+
+        self.client.send(data);
     }
 
     pub fn send_spawn_missile(self: *Self, new_item: entity.Entity) void {

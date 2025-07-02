@@ -73,6 +73,7 @@ pub const PacketType = enum(u32) {
     server_state_changed,
     finished,
     spawn_missile,
+    spawn_oil,
     req_server_state_sync,
 };
 
@@ -138,6 +139,16 @@ pub const MissileSpawn = extern struct {
 pub const MissileSpawnSync = extern struct {
     id: PlayerId,
     item: MissileSpawn,
+};
+
+pub const OilSpawn = extern struct {
+    transform: entity.Transform,
+    prefab: entity.Prefab,
+};
+
+pub const OilSpawnSync = extern struct {
+    id: PlayerId,
+    item: OilSpawn,
 };
 
 pub const Finish = extern struct {

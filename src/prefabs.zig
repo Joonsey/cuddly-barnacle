@@ -16,6 +16,7 @@ pub const Prefab = enum(u8) {
     missile,
     particle,
     smoke_emitter,
+    oil,
 };
 
 const Map = std.AutoHashMapUnmanaged(Prefab, entity.Entity);
@@ -77,7 +78,7 @@ pub fn init(allocator: std.mem.Allocator) !void {
         .transform = .{ .position = .{ .x = 0, .y = 0 } },
         .renderable = .{ .Stacked = .{ .texture = try get_texture(.missile) } },
         .shadow = .{ .radius = 8 },
-        .timer = .{ .timer = 0.5 },
+        .hazard = .{},
     });
 
     try reg(.tank, allocator, .{
@@ -102,15 +103,24 @@ pub fn init(allocator: std.mem.Allocator) !void {
         .renderable = .{ .Stacked = .{ .texture = try get_texture(.itembox) } },
         .shadow = .{ .radius = 8 },
     });
+
     try reg(.smoke_emitter, allocator, .{
         .archetype = .ParticleEmitter,
         .transform = .{ .position = .{ .x = 0, .y = 0 } },
         .particle_emitter = .{ .kind = .{ .Stacked = .{} }, .direction = .init(0, 0) },
     });
 
+    try reg(.oil, allocator, .{
+        .archetype = .Hazard,
+        .transform = .{ .position = .{ .x = 0, .y = 0 } },
+        .renderable = .{ .Stacked = .{ .texture = try get_texture(.oil) } },
+        .hazard = .{},
+    });
+
     // init icons
     try items.put(allocator, .boost, try get_texture(.ui_boost));
     try items.put(allocator, .missile, try get_texture(.ui_missile));
+    try items.put(allocator, .oil, try get_texture(.ui_missile)); // TODO
 
     // UI elements
     try ui.put(allocator, .notready, try get_texture(.lobby_notready));
@@ -178,6 +188,7 @@ pub fn iter(allocator: std.mem.Allocator) Iterator {
 pub const Item = enum(u8) {
     boost,
     missile,
+    oil,
 };
 
 pub const UI = enum(u8) {

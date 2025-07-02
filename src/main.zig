@@ -77,6 +77,8 @@ const Inventory = struct {
                     eligible_items.append(self.allocator, prefab.Item.boost) catch unreachable;
                     eligible_items.append(self.allocator, prefab.Item.missile) catch unreachable;
                     eligible_items.append(self.allocator, prefab.Item.missile) catch unreachable;
+                    eligible_items.append(self.allocator, prefab.Item.oil) catch unreachable;
+                    eligible_items.append(self.allocator, prefab.Item.oil) catch unreachable;
                     self.item = self.generate_item(eligible_items.items);
                     eligible_items.deinit(self.allocator);
                 }
@@ -277,6 +279,13 @@ const Gamestate = struct {
                 pre.target = .{ .id = @intCast(target_player_id) };
                 self.client.send_spawn_missile(pre);
                 if (self.client.player_map.get(target_player_id)) |entity_id| pre.target.?.id = entity_id;
+                _ = self.ecs.spawn(pre);
+            },
+            .oil => {
+                const player = self.ecs.get(self.inventory.player_id);
+                var pre = prefab.get(.oil);
+                pre.transform = player.transform;
+                self.client.send_spawn_oil(pre);
                 _ = self.ecs.spawn(pre);
             },
         };

@@ -128,6 +128,11 @@ pub const ParticleEmitter = struct {
     direction: rl.Vector2,
 };
 
+pub const Hazard = struct {
+    collision: rl.Rectangle = .{ .x = 0, .y = 0, .width = 16, .height = 16 },
+    timer: f32 = 0.5,
+};
+
 pub const DriftStage = enum(u8) {
     none,
     Mini,
@@ -197,6 +202,7 @@ pub const Archetype = enum {
     ItemBox,
     Particle,
     ParticleEmitter,
+    Hazard,
 };
 
 pub const Timer = struct {
@@ -253,6 +259,7 @@ pub const Entity = struct {
     target: ?Target = null,
     spinout: ?Spinout = null,
     particle_emitter: ?ParticleEmitter = null,
+    hazard: ?Hazard = null,
 
     const Self = @This();
     pub fn update(self: *Self, deltatime: f32) ?Event {
@@ -430,14 +437,17 @@ pub const ECS = struct {
 
                         a_kinetic.velocity = a_kinetic.velocity.subtract(impulse);
                         b_kinetic.velocity = b_kinetic.velocity.add(impulse);
-                    } else if (a.archetype == .Missile and b.archetype == .Car) {
+                    } else if (a.hazard != null and b.archetype == .Car) {
                         self.kill(col.a);
-                        b.spinout = .{ .original_rotation = b.transform.?.rotation };
+                        if (b.spinout == null) b.spinout = .{ .original_rotation = b.transform.?.rotation };
                         if (b.drift) |_| b.drift = .{};
-                    } else if (b.archetype == .Missile and a.archetype == .Car) {
+                    } else if (b.hazard != null and a.archetype == .Car) {
                         self.kill(col.b);
-                        a.spinout = .{ .original_rotation = a.transform.?.rotation };
+                        if (a.spinout == null) a.spinout = .{ .original_rotation = a.transform.?.rotation };
                         if (a.drift) |_| a.drift = .{};
+
+                        // things like oil and missiles should collide
+                        // in the future, we should have stronger collision checks, that checks for height. Which should disqualify these from colliding
                     } else if (b.archetype == .Missile) {
                         self.kill(col.b);
                     } else if (a.archetype == .Missile) {
@@ -594,6 +604,13 @@ pub const ECS = struct {
                 }
             }
 
+            if (entity.hazard) |*hazard| {
+                hazard.timer = @max(hazard.timer - deltatime, 0);
+                if (hazard.timer <= 0) {
+                    entity.collision = hazard.collision;
+                }
+            }
+
             switch (entity.archetype) {
                 .ItemBox => {
                     if (entity.transform) |*transform| {
@@ -618,12 +635,6 @@ pub const ECS = struct {
                     }
                 },
                 .Missile => {
-                    if (entity.timer) |timer| {
-                        if (timer.timer <= 0) {
-                            entity.collision = .{ .x = 0, .y = 0, .width = 16, .height = 16 };
-                            entity.timer = null;
-                        }
-                    }
                     if (entity.target) |target_component| {
                         const speed = 200;
                         const target_entity = self.get(target_component.id);
@@ -681,6 +692,7 @@ pub const ECS = struct {
         entity.target = null;
         entity.timer = null;
         entity.transform = null;
+        entity.hazard = null;
 
         self.recycle_array.append(self.allocator, id) catch unreachable;
     }
