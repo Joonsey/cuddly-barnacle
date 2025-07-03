@@ -15,7 +15,7 @@ pub const Controller = struct {
 
     const CarStats = struct {
         max_speed: f32 = 150,
-        acceleration: f32 = 100,
+        acceleration: f32 = 5,
         boost_speed: f32 = 250,
         handling: f32 = 2,
     };
@@ -23,14 +23,14 @@ pub const Controller = struct {
         return switch (pre) {
             .car_base => .{
                 .max_speed = 150,
-                .acceleration = 100,
-                .boost_speed = 250,
+                .acceleration = 5,
+                .boost_speed = 230,
                 .handling = 2,
             },
             .car_yellow => .{
                 .max_speed = 165,
-                .acceleration = 65,
-                .boost_speed = 285,
+                .acceleration = 4,
+                .boost_speed = 245,
                 .handling = 2,
             },
             else => {
@@ -65,10 +65,7 @@ pub const Controller = struct {
 
         if (is_grounded and rl.isKeyDown(.s)) {
             if (current_speed > -car_stats.max_speed * 0.5) {
-                kinetic.velocity.x -= accel * forward.x;
-                kinetic.velocity.y -= accel * forward.y;
-                kinetic.velocity = kinetic.velocity.normalize();
-                kinetic.velocity = kinetic.velocity.scale(car_stats.max_speed * 0.5);
+                kinetic.velocity = forward_normal.scale(@min(current_speed + accel, car_stats.max_speed * 0.5)).scale(-1);
             }
         }
 
