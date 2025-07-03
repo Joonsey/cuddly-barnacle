@@ -120,7 +120,7 @@ pub fn init(allocator: std.mem.Allocator) !void {
     // init icons
     try items.put(allocator, .boost, try get_texture(.ui_boost));
     try items.put(allocator, .missile, try get_texture(.ui_missile));
-    try items.put(allocator, .oil, try get_texture(.ui_missile)); // TODO
+    try items.put(allocator, .oil, try get_texture(.ui_oil));
 
     // UI elements
     try ui.put(allocator, .notready, try get_texture(.lobby_notready));
