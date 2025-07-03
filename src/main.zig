@@ -841,6 +841,11 @@ pub fn main() !void {
     rl.setTargetFPS(144);
     while (!rl.windowShouldClose()) {
         const deltatime = rl.getFrameTime();
+
+        if (rl.isWindowResized()) {
+            WINDOW_WIDTH = rl.getScreenWidth();
+            WINDOW_HEIGHT = rl.getScreenHeight();
+        }
         state.update(deltatime);
 
         scene.begin();
