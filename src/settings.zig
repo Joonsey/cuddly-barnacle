@@ -9,6 +9,7 @@ pub const Settings = struct {
     sound_volume: f32,
     music_volume: f32,
     player_name: [16]u8,
+    preferred_car: usize,
     player_id: u32,
 
     pub fn default() Settings {
@@ -17,6 +18,7 @@ pub const Settings = struct {
             .music_volume = 0.05,
             .player_name = util.to_fixed("zkr player", 16),
             .player_id = std.crypto.random.int(u32),
+            .preferred_car = 0,
         };
     }
 
@@ -26,6 +28,7 @@ pub const Settings = struct {
             .music_volume = 0.05,
             .player_name = s.player_name,
             .player_id = s.player_id,
+            .preferred_car = 0,
         };
     }
 
@@ -52,6 +55,7 @@ pub const Settings = struct {
         if (s.music_volume > 1) return error.VolumeTooHigh;
         if (s.sound_volume > 1) return error.VolumeTooHigh;
         if (s.player_id == 0) return error.InvalidPlayerId;
+        if (s.preferred_car < 1) return error.InvalidCar; // Remember to update
     }
 
     pub fn save(s: Settings, allocator: std.mem.Allocator) !void {

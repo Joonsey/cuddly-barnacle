@@ -14,6 +14,7 @@ pub const Asset = enum(usize) {
     tank,
     itembox,
     car_base,
+    car_yellow,
     oil,
 
     ui_boost,
@@ -63,6 +64,7 @@ pub fn init() !void {
     try arr.append(allocator, decompress_file("compressed_assets/tank.png.zst"));
     try arr.append(allocator, decompress_file("compressed_assets/itembox.png.zst"));
     try arr.append(allocator, decompress_file("compressed_assets/car_base.png.zst"));
+    try arr.append(allocator, decompress_file("compressed_assets/car_yellow.png.zst"));
     try arr.append(allocator, decompress_file("compressed_assets/oil.png.zst"));
 
     try arr.append(allocator, decompress_file("compressed_assets/ui/icons/boost.png.zst"));

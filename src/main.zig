@@ -475,13 +475,30 @@ const Gamestate = struct {
                 self.client.ctx.lock.unlockShared();
             },
             .Lobby => {
-                if (rl.isKeyPressed(.r)) self.ready = !self.ready;
+                const cars = prefab.Prefab.cars();
+                if (rl.isKeyPressed(.r)) {
+                    self.ready = !self.ready;
+
+                    if (self.ready) {
+                        var user_settings = settings.get();
+                        user_settings.preferred_car = std.mem.indexOfScalar(prefab.Prefab, cars, self.selected_prefab) orelse user_settings.preferred_car;
+                        settings.update(user_settings);
+                        settings.save(self.allocator) catch |err| std.log.err("error saving settings {}", .{err});
+                    }
+                }
+
                 self.client.send_lobby_update(.{ .ready = self.ready, .name = self.name, .vote = self.selector });
 
                 const levels = level.get_all();
                 if (!self.ready) {
                     if (rl.isKeyPressed(.w)) self.selector = (self.selector + levels.len - 1) % levels.len;
                     if (rl.isKeyPressed(.s)) self.selector = (self.selector + 1) % levels.len;
+
+                    const selected_car = self.selected_prefab;
+                    if (std.mem.indexOfScalar(prefab.Prefab, cars, selected_car)) |index| {
+                        if (rl.isKeyPressed(.a)) self.selected_prefab = cars[(index + cars.len - 1) % cars.len];
+                        if (rl.isKeyPressed(.d)) self.selected_prefab = cars[(index + 1) % cars.len];
+                    }
                 }
 
                 const server_state = self.client.ctx.server_state;
@@ -831,6 +848,8 @@ pub fn main() !void {
     const user_settings = settings.get();
     state.client.ctx.own_player_id = user_settings.player_id; // network id, not entity id
     state.name = user_settings.player_name;
+    const cars = prefab.Prefab.cars();
+    if (user_settings.preferred_car >= cars.len) std.log.err("invalid preferred car, will default to {s}", .{@tagName(prefab.Prefab.car_base)}) else state.selected_prefab = cars[user_settings.preferred_car];
     rl.setMasterVolume(user_settings.sound_volume);
 
     state.client.start();

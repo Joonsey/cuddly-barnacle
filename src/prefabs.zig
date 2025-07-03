@@ -10,6 +10,7 @@ pub const Prefab = enum(u8) {
     tank,
     itembox,
     car_base,
+    car_yellow,
     fence,
     fence_end,
     fence_corner,
@@ -17,6 +18,10 @@ pub const Prefab = enum(u8) {
     particle,
     smoke_emitter,
     oil,
+
+    pub fn cars() []const Prefab {
+        return &[_]Prefab{ .car_base, .car_yellow };
+    }
 };
 
 const Map = std.AutoHashMapUnmanaged(Prefab, entity.Entity);
@@ -88,11 +93,20 @@ pub fn init(allocator: std.mem.Allocator) !void {
         .renderable = .{ .Stacked = .{ .texture = try get_texture(.tank) } },
         .shadow = .{ .radius = 9 },
     });
+
     try reg(.car_base, allocator, .{
         .archetype = .Car,
         .collision = .{ .x = 0, .y = 0, .width = 16, .height = 16 },
         .transform = .{ .position = .{ .x = 0, .y = 0 } },
         .renderable = .{ .Stacked = .{ .texture = try get_texture(.car_base) } },
+        .shadow = .{ .radius = 8 },
+    });
+
+    try reg(.car_yellow, allocator, .{
+        .archetype = .Car,
+        .collision = .{ .x = 0, .y = 0, .width = 16, .height = 16 },
+        .transform = .{ .position = .{ .x = 0, .y = 0 } },
+        .renderable = .{ .Stacked = .{ .texture = try get_texture(.car_yellow) } },
         .shadow = .{ .radius = 8 },
     });
 
