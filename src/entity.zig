@@ -11,12 +11,39 @@ pub const Prefab = prefab.Prefab;
 pub const EntityId = u32;
 
 pub const Controller = struct {
-    const max_speed = 150;
-    const acceleration = 100;
-    const boost_speed = 250;
     const Self = @This();
-    pub fn handle_input(self: Self, kinetic: *Kinetic, drift: *Drift, boost: *Boost, transform: *Transform, deltatime: f32) void {
+
+    const CarStats = struct {
+        max_speed: f32 = 150,
+        acceleration: f32 = 100,
+        boost_speed: f32 = 250,
+        handling: f32 = 2,
+    };
+    fn stats(pre: Prefab) CarStats {
+        return switch (pre) {
+            .car_base => .{
+                .max_speed = 150,
+                .acceleration = 100,
+                .boost_speed = 250,
+                .handling = 2,
+            },
+            .car_yellow => .{
+                .max_speed = 165,
+                .acceleration = 65,
+                .boost_speed = 285,
+                .handling = 2,
+            },
+            else => {
+                std.log.warn("a controller object is controlling a non-handled car prefab", .{});
+                return .{};
+            },
+        };
+    }
+
+    pub fn handle_input(self: Self, kinetic: *Kinetic, drift: *Drift, boost: *Boost, transform: *Transform, pre: Prefab, deltatime: f32) void {
         _ = self;
+
+        const car_stats = stats(pre);
 
         const forward: rl.Vector2 = .{
             .x = @cos(transform.rotation),
@@ -27,25 +54,25 @@ pub const Controller = struct {
 
         const current_speed = kinetic.velocity.length();
 
-        const accel = acceleration;
+        const accel = car_stats.acceleration;
         const is_grounded = transform.height == 0;
 
         if (is_grounded and rl.isKeyDown(.w)) {
-            if (current_speed < max_speed) {
-                kinetic.velocity = forward_normal.scale(@min(current_speed + accel, max_speed));
+            if (current_speed < car_stats.max_speed) {
+                kinetic.velocity = forward_normal.scale(@min(current_speed + accel, car_stats.max_speed));
             }
         }
 
         if (is_grounded and rl.isKeyDown(.s)) {
-            if (current_speed > -max_speed * 0.5) {
+            if (current_speed > -car_stats.max_speed * 0.5) {
                 kinetic.velocity.x -= accel * forward.x;
                 kinetic.velocity.y -= accel * forward.y;
                 kinetic.velocity = kinetic.velocity.normalize();
-                kinetic.velocity = kinetic.velocity.scale(max_speed * 0.5);
+                kinetic.velocity = kinetic.velocity.scale(car_stats.max_speed * 0.5);
             }
         }
 
-        const base_rotation_speed = 2 * current_speed / max_speed * deltatime;
+        const base_rotation_speed = car_stats.handling * current_speed / car_stats.max_speed * deltatime;
 
         if (drift.is_drifting) {
             if (drift.direction == 0 and is_grounded or is_grounded and kinetic.traction == .Offroad) {
@@ -81,7 +108,7 @@ pub const Controller = struct {
             }
         }
 
-        if (boost.boost_time > 0) kinetic.velocity = forward_normal.scale(boost_speed);
+        if (boost.boost_time > 0) kinetic.velocity = forward_normal.scale(car_stats.boost_speed);
 
         const rotation_speed = if (!drift.is_drifting) base_rotation_speed else base_rotation_speed * 0.2;
 
@@ -269,7 +296,9 @@ pub const Entity = struct {
                 if (self.drift) |*drift| {
                     if (self.transform) |*transform| {
                         if (self.boost) |*boost| {
-                            if (self.spinout == null) controller.handle_input(kinetic, drift, boost, transform, deltatime);
+                            if (self.prefab) |pre| {
+                                if (self.spinout == null) controller.handle_input(kinetic, drift, boost, transform, pre, deltatime);
+                            }
                         }
                     }
                 }
